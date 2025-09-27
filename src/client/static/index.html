@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>股票数据 SSE + HTTP POST 演示</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 30px;
+            text-align: center;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 15px;
+        }
+
+        .section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+
+        .section h3 {
+            margin-top: 0;
+            color: #34495e;
+        }
+
+        .input-group {
+            margin: 15px 0;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .input-group label {
+            min-width: 100px;
+            font-weight: bold;
+        }
+
+        .input-group input,
+        .input-group select {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        button {
+            background-color: #3498db;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+
+        .status.connected {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.connecting {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
+        .log {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 6px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+        }
+
+        .result {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .input-group {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .input-group label {
+                min-width: auto;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>📈 股票数据 SSE + HTTP POST 双向通信演示</h1>
+
+        <div class="section">
+            <h3>🔗 SSE 连接状态</h3>
+            <div id="connectionStatus" class="status disconnected">未连接</div>
+            <button id="connectBtn" onclick="connectSSE()">连接 SSE</button>
+            <button id="disconnectBtn" onclick="disconnectSSE()" disabled>断开连接</button>
+        </div>
+
+        <div class="grid">
+            <div class="section">
+                <h3>📊 股票行情查询</h3>
+                <div class="input-group">
+                    <label>股票代码:</label>
+                    <input type="text" id="stockSymbol" placeholder="例: 000001, AAPL, 00700" value="000001">
+                </div>
+                <button onclick="getStockQuote()">获取行情</button>
+                <button onclick="getStockAnalysis()">获取分析</button>
+                <div id="stockResult" class="result" style="display: none;"></div>
+            </div>
+
+            <div class="section">
+                <h3>🌍 市场概览</h3>
+                <div class="input-group">
+                    <label>市场类型:</label>
+                    <select id="marketType">
+                        <option value="china">A股</option>
+                        <option value="hk">港股</option>
+                        <option value="us">美股</option>
+                    </select>
+                </div>
+                <button onclick="getMarketOverview()">获取概览</button>
+                <button onclick="refreshCache()">刷新缓存</button>
+                <div id="marketResult" class="result" style="display: none;"></div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>📰 新闻搜索</h3>
+            <div class="input-group">
+                <label>搜索关键词:</label>
+                <input type="text" id="newsQuery" placeholder="股票代码或公司名" value="000001">
+                <label>天数:</label>
+                <input type="number" id="newsDays" value="7" min="1" max="30">
+                <button onclick="searchNews()">搜索新闻</button>
+            </div>
+            <div id="newsResult" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="section">
+            <h3>📋 系统状态</h3>
+            <button onclick="getSystemStatus()">获取状态</button>
+            <button onclick="clearLog()">清空日志</button>
+            <div id="systemResult" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="section">
+            <h3>📝 实时日志</h3>
+            <div id="logContainer" class="log">等待连接 SSE...</div>
+        </div>
+    </div>
+
+    <script>
+        let eventSource = null;
+        let isConnected = false;
+        let clientId = null;
+
+        const SERVER_URL = 'http://localhost:8000';
+
+        function log(message) {
+            const logContainer = document.getElementById('logContainer');
+            const timestamp = new Date().toLocaleTimeString();
+            logContainer.textContent += `[${timestamp}] ${message}\n`;
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function updateConnectionStatus(status, message) {
+            const statusEl = document.getElementById('connectionStatus');
+            const connectBtn = document.getElementById('connectBtn');
+            const disconnectBtn = document.getElementById('disconnectBtn');
+
+            statusEl.className = `status ${status}`;
+            statusEl.textContent = message;
+
+            if (status === 'connected') {
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+                isConnected = true;
+            } else {
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                isConnected = false;
+            }
+        }
+
+        function connectSSE() {
+            if (eventSource) {
+                eventSource.close();
+            }
+
+            updateConnectionStatus('connecting', '正在连接...');
+            log('正在建立 SSE 连接...');
+
+            eventSource = new EventSource(`${SERVER_URL}/sse/connect`);
+
+            eventSource.onopen = function (event) {
+                updateConnectionStatus('connected', '已连接');
+                log('✅ SSE 连接已建立');
+            };
+
+            eventSource.onmessage = function (event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    log(`📨 收到消息: ${data.type || 'message'}`);
+                    console.log('SSE消息:', data);
+                } catch (e) {
+                    log(`📨 收到原始消息: ${event.data}`);
+                }
+            };
+
+            eventSource.addEventListener('connection', function (event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    clientId = data.client_id;
+                    log(`🔗 连接建立: 客户端ID = ${clientId}`);
+                    log(`📍 POST端点: ${data.post_endpoint}`);
+                } catch (e) {
+                    log('连接事件解析失败');
+                }
+            });
+
+            eventSource.addEventListener('jsonrpc_response', function (event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    log(`📊 JSON-RPC响应: ${data.method} (ID: ${data.request_id})`);
+                    displayResult(data.method, data.result);
+                } catch (e) {
+                    log('JSON-RPC响应解析失败');
+                }
+            });
+
+            eventSource.onerror = function (event) {
+                updateConnectionStatus('disconnected', '连接失败');
+                log('❌ SSE 连接错误');
+                console.error('SSE错误:', event);
+            };
+        }
+
+        function disconnectSSE() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+            updateConnectionStatus('disconnected', '已断开');
+            log('🔌 SSE 连接已断开');
+            clientId = null;
+        }
+
+        async function sendJSONRPC(method, params = {}) {
+            if (!isConnected) {
+                alert('请先连接 SSE');
+                return null;
+            }
+
+            const requestId = `req_${Date.now()}`;
+            const request = {
+                jsonrpc: "2.0",
+                method: method,
+                params: params,
+                id: requestId
+            };
+
+            try {
+                log(`📤 发送JSON-RPC请求: ${method}`);
+                const response = await fetch(`${SERVER_URL}/api/message`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(request)
+                });
+
+                const result = await response.json();
+                log(`📥 收到JSON-RPC响应: ${method}`);
+                return result;
+            } catch (error) {
+                log(`❌ JSON-RPC请求失败: ${error.message}`);
+                return { error: { message: error.message } };
+            }
+        }
+
+        function displayResult(method, result) {
+            let containerId;
+
+            // 根据方法类型选择显示容器
+            if (method.includes('stock')) {
+                containerId = 'stockResult';
+            } else if (method.includes('market')) {
+                containerId = 'marketResult';
+            } else if (method.includes('news')) {
+                containerId = 'newsResult';
+            } else {
+                containerId = 'systemResult';
+            }
+
+            const container = document.getElementById(containerId);
+            if (container) {
+                container.style.display = 'block';
+                container.textContent = JSON.stringify(result, null, 2);
+            }
+        }
+
+        async function getStockQuote() {
+            const symbol = document.getElementById('stockSymbol').value.trim();
+            if (!symbol) {
+                alert('请输入股票代码');
+                return;
+            }
+
+            const result = await sendJSONRPC('get_stock_quote', { symbol });
+            if (result && result.result) {
+                displayResult('stock_quote', result.result);
+            }
+        }
+
+        async function getStockAnalysis() {
+            const symbol = document.getElementById('stockSymbol').value.trim();
+            if (!symbol) {
+                alert('请输入股票代码');
+                return;
+            }
+
+            const result = await sendJSONRPC('get_stock_analysis', { symbol, type: 'fundamental' });
+            if (result && result.result) {
+                displayResult('stock_analysis', result.result);
+            }
+        }
+
+        async function getMarketOverview() {
+            const market = document.getElementById('marketType').value;
+            const result = await sendJSONRPC('get_market_overview', { market });
+            if (result && result.result) {
+                displayResult('market_overview', result.result);
+            }
+        }
+
+        async function refreshCache() {
+            const market = document.getElementById('marketType').value;
+            const result = await sendJSONRPC('refresh_cache', { market });
+            if (result && result.result) {
+                displayResult('refresh_cache', result.result);
+            }
+        }
+
+        async function searchNews() {
+            const query = document.getElementById('newsQuery').value.trim();
+            const days = parseInt(document.getElementById('newsDays').value);
+
+            if (!query) {
+                alert('请输入搜索关键词');
+                return;
+            }
+
+            const result = await sendJSONRPC('get_stock_news', { symbol: query, days });
+            if (result && result.result) {
+                displayResult('stock_news', result.result);
+            }
+        }
+
+        async function getSystemStatus() {
+            const result = await sendJSONRPC('get_system_status', {});
+            if (result && result.result) {
+                displayResult('system_status', result.result);
+            }
+        }
+
+        function clearLog() {
+            document.getElementById('logContainer').textContent = '';
+        }
+
+        // 页面加载时自动连接
+        window.addEventListener('load', function () {
+            log('页面已加载，准备连接SSE...');
+            // 可以选择自动连接或让用户手动连接
+            // connectSSE();
+        });
+
+        // 页面卸载时断开连接
+        window.addEventListener('beforeunload', function () {
+            disconnectSSE();
+        });
+    </script>
+</body>
+
+</html>
