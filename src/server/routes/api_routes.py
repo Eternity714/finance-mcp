@@ -15,14 +15,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.post("/stock/price")
-async def get_stock_price_data(request_data: Dict[str, Any]):
+@router.get("/stock/price")
+async def get_stock_price_data(symbol: str, start_date: str, end_date: str):
     """获取股票价格数据和分析报告"""
     try:
-        symbol = request_data.get("symbol")
-        start_date = request_data.get("start_date")
-        end_date = request_data.get("end_date")
-
         if not symbol:
             raise HTTPException(status_code=400, detail="缺少股票代码")
         if not start_date or not end_date:
@@ -46,11 +42,10 @@ async def get_stock_price_data(request_data: Dict[str, Any]):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/stock/fundamental")
-async def get_financial_report(request_data: Dict[str, Any]):
+@router.get("/stock/fundamental")
+async def get_financial_report(symbol: str):
     """获取基本面财务报告"""
     try:
-        symbol = request_data.get("symbol")
         if not symbol:
             raise HTTPException(status_code=400, detail="缺少股票代码")
 
@@ -72,15 +67,12 @@ async def get_financial_report(request_data: Dict[str, Any]):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/stock/news")
-async def get_latest_news(request_data: Dict[str, Any]):
+@router.get("/stock/news")
+async def get_latest_news(symbol: str, days_back: int = 30):
     """获取股票最新新闻"""
     try:
-        symbol = request_data.get("symbol")
         if not symbol:
             raise HTTPException(status_code=400, detail="缺少股票代码")
-
-        days_back = request_data.get("days_back", 30)
 
         # 使用新闻服务
         from ..services.news_service import RealtimeNewsAggregator
