@@ -290,30 +290,31 @@
 
             try {
                 let endpoint = '';
-                let payload = {};
+                const params = new URLSearchParams();
+                params.append('symbol', symbol);
 
                 switch (testType) {
                     case 'price':
                         endpoint = '/api/stock/price';
-                        payload = { symbol, start_date: startDate, end_date: endDate };
+                        params.append('start_date', startDate);
+                        params.append('end_date', endDate);
                         break;
                     case 'fundamental':
                         endpoint = '/api/stock/fundamental';
-                        payload = { symbol };
                         break;
                     case 'news':
                         endpoint = '/api/stock/news';
-                        payload = { symbol, days_back: 30 };
+                        params.append('days_back', 30);
                         break;
                 }
 
-                const response = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
+                const url = `${endpoint}?${params.toString()}`;
+                const response = await fetch(url);
 
                 const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.detail || `HTTP ${response.status}`);
+                }
                 addLogEntry(`✅ API 测试成功`, 'success');
                 addLogEntry(`📊 响应数据: ${JSON.stringify(data, null, 2)}`, 'info');
                 
