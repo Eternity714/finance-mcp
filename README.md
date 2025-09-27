@@ -81,26 +81,42 @@ pip install -r requirements.txt
 
 ### 4. 启动服务
 
-#### 方式一：MCP 模式启动
+本项目提供一个统一启动脚本 `main.py`，可以并发启动 FastAPI Web 服务和 MCP 服务器（默认 MCP 模式为 `streamable-http`）。日志输出到 stderr（MCP 通信使用 stdout），可通过命令行参数控制端口、MCP 模式和日志级别。
+
+用法：
 
 ```bash
-# STDIO 模式 (用于本地 MCP 客户端)
-python main.py --mode stdio
-
-# SSE 模式 (用于 Web 客户端)
-python main.py --mode sse --port 8000
-
-# StreamableHTTP 模式 (用于 HTTP 客户端)
-python main.py --mode streamable-http --port 8000
+python main.py [--mcp-mode {stdio|sse|streamable-http}] [--http-port <port>] [--mcp-port <port>] [--log-level {DEBUG|INFO|WARNING|ERROR}]
 ```
 
-#### 方式二：FastAPI 服务器模式
+默认值：
+- `--mcp-mode`：`streamable-http`
+- `--http-port`：`8000`
+- `--mcp-port`：`8001`
+- `--log-level`：`INFO`
+
+示例：
 
 ```bash
-# 开发模式
+# 仅使用 stdio 模式运行 MCP（适用于本地 MCP 客户端）
+python main.py --mcp-mode stdio
+
+# 在 SSE 模式下启动 MCP（MCP 在 8001 端口），同时启动 FastAPI 在 8000
+python main.py --mcp-mode sse --mcp-port 8001 --http-port 8000
+
+# 使用 StreamableHTTP 模式（默认）并设置日志级别为 DEBUG
+python main.py --mcp-mode streamable-http --mcp-port 8001 --http-port 8000 --log-level DEBUG
+```
+
+注意：`main.py` 会同时启动 FastAPI 和 MCP（根据所选模式），如果只想单独启动 FastAPI，可使用 `start_server.py` 或通过 uvicorn 直接运行（参见下方）。
+
+#### 方式二：FastAPI 服务器模式（单独启动）
+
+```bash
+# 使用项目自带脚本启动 FastAPI（开发模式）
 python start_server.py
 
-# 或者使用 uvicorn
+# 或者使用 uvicorn 仅启动 FastAPI
 uvicorn src.server.app:app --host 127.0.0.1 --port 8000 --reload
 ```
 
@@ -194,34 +210,19 @@ get_latest_news(symbol: str, days_back: int = 30) -> str
 
 #### 股票数据相关
 
+获取股票价格数据:
 ```http
-POST /api/stock/price
-Content-Type: application/json
-
-{
-  "symbol": "000001",
-  "start_date": "2023-01-01",
-  "end_date": "2023-12-31"
-}
+GET /api/stock/price?symbol=000001&start_date=2023-01-01&end_date=2023-12-31
 ```
 
+获取基本面数据:
 ```http
-POST /api/stock/fundamental
-Content-Type: application/json
-
-{
-  "symbol": "000001"
-}
+GET /api/stock/fundamental?symbol=000001
 ```
 
+获取最新新闻:
 ```http
-POST /api/stock/news
-Content-Type: application/json
-
-{
-  "symbol": "000001",
-  "days_back": 30
-}
+GET /api/stock/news?symbol=000001&days_back=30
 ```
 
 #### SSE 连接
@@ -280,15 +281,12 @@ eventSource.onmessage = function(event) {
 
 // 发送请求
 async function getStockData() {
-    const response = await fetch('/api/stock/price', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            symbol: '000001',
-            start_date: '2023-01-01',
-            end_date: '2023-12-31'
-        })
-    });
+    const symbol = '000001';
+    const startDate = '2023-01-01';
+    const endDate = '2023-12-31';
+    const url = `/api/stock/price?symbol=${symbol}&start_date=${startDate}&end_date=${endDate}`;
+
+    const response = await fetch(url);
     
     const data = await response.json();
     console.log(data);
@@ -371,10 +369,8 @@ python test_mcp_meta.py
 # 测试健康检查
 curl http://localhost:8000/health
 
-# 测试股票数据 API
-curl -X POST http://localhost:8000/api/stock/price \
-  -H "Content-Type: application/json" \
-  -d '{"symbol": "000001", "start_date": "2023-01-01", "end_date": "2023-12-31"}'
+# 测试股票价格 API
+curl -X GET "http://localhost:8000/api/stock/price?symbol=000001&start_date=2023-01-01&end_date=2023-12-31"
 ```
 
 ## 🔍 监控与日志
@@ -421,8 +417,8 @@ gunicorn --workers 4 --bind 0.0.0.0:5005 app:app
 
 ## 📞 联系方式
 
-- 项目维护者: [您的名字]
-- 邮箱: [您的邮箱]
+- 项目维护者: [胡伟华]
+- 邮箱: [2215629678@qq.com]
 - 项目主页: [项目链接]
 
 ## 🙏 致谢
