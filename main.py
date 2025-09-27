@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """
-股票数据 MCP 服务器启动脚本
-支持 stdio 和 SSE 两种模式
-支持 stdio, sse, 和 streamable-http 三种模式
+统一启动脚本: 同时启动 FastAPI Web 服务器和 MCP 服务器
 """
 
 import argparse
@@ -10,12 +8,15 @@ import asyncio
 import logging
 import sys
 from pathlib import Path
+import uvicorn
 
 # 添加项目根目录到Python路径
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 from src.server.mcp_server import run_mcp_server
+from src.server.app import create_app
+from src.server.mcp_server import StockMCPServer
 
 
 def setup_logging(level: str = "INFO"):
@@ -31,13 +32,22 @@ async def main():
     """主函数"""
     parser = argparse.ArgumentParser(description="股票数据 MCP 服务器")
     parser.add_argument(
-        "--mode",
+        "--mcp-mode",
         choices=["stdio", "sse", "streamable-http"],
-        default="sse",
-        help="通信模式: stdio, sse, 或 streamable-http (默认: sse)",
+        default="streamable-http",
+        help="MCP 服务器的通信模式 (默认: streamable-http)",
     )
     parser.add_argument(
-        "--port", type=int, default=8000, help="SSE模式的端口号 (默认: 8000)"
+        "--http-port",
+        type=int,
+        default=8000,
+        help="FastAPI Web 服务器的端口号 (默认: 8000)",
+    )
+    parser.add_argument(
+        "--mcp-port",
+        type=int,
+        default=8001,
+        help="MCP 服务器在 sse 或 streamable-http 模式下的端口号 (默认: 8001)",
     )
     parser.add_argument(
         "--log-level",
@@ -48,44 +58,40 @@ async def main():
 
     args = parser.parse_args()
 
-    # 配置日志
     setup_logging(args.log_level)
     logger = logging.getLogger(__name__)
 
     try:
-        logger.info(f"🚀 启动股票数据MCP服务器 (模式: {args.mode})")
+        # --- 启动 FastAPI 服务器 ---
+        app = create_app()
+        uvicorn_config = uvicorn.Config(
+            app, host="0.0.0.0", port=args.http_port, log_level=args.log_level.lower()
+        )
+        uvicorn_server = uvicorn.Server(uvicorn_config)
+        logger.info(f"🚀 FastAPI Web 服务器将在 http://0.0.0.0:{args.http_port} 启动")
+        fastapi_task = asyncio.create_task(uvicorn_server.serve())
 
-        if args.mode == "stdio":
-            # stdio 模式 - 用于本地MCP客户端
-            from src.server.mcp_server import StockMCPServer
+        # --- 启动 MCP 服务器 ---
+        mcp_task = None
+        logger.info(f"🚀 启动股票数据 MCP 服务器 (模式: {args.mcp_mode})")
+        server = StockMCPServer()
 
-            server = StockMCPServer()
+        if args.mcp_mode == "stdio":
             mcp = server.create_mcp_server()
-            await mcp.run_stdio_async()
-        elif args.mode == "sse":
-            # SSE 模式 - 用于网络通信
-            from src.server.mcp_server import StockMCPServer
+            mcp_task = asyncio.create_task(mcp.run_stdio_async())
+        elif args.mcp_mode == "sse":
+            mcp = server.create_mcp_server(port=args.mcp_port)
+            logger.info(f"📡 MCP (SSE) 服务器将在端口 {args.mcp_port} 启动")
+            mcp_task = asyncio.create_task(mcp.run_sse_async())
+        elif args.mcp_mode == "streamable-http":
+            mcp = server.create_mcp_server(port=args.mcp_port)
+            logger.info(f"📡 MCP (StreamableHTTP) 服务器将在端口 {args.mcp_port} 启动")
+            mcp_task = asyncio.create_task(mcp.run_streamable_http_async())
 
-            server = StockMCPServer()
-            # 从 StockMCPServer 创建一个已配置好工具和端口的 mcp 实例
-            mcp = server.create_mcp_server(port=args.port)
-
-            logger.info(
-                f"📡 SSE 服务器将在端口 {args.port} 启动 (端点: GET /sse, POST /messages/)"
-            )
-            await mcp.run_sse_async()
-        elif args.mode == "streamable-http":
-            # Streamable HTTP 模式 - 用于网络通信
-            from src.server.mcp_server import StockMCPServer
-
-            server = StockMCPServer()
-            # 从 StockMCPServer 创建一个已配置好工具和端口的 mcp 实例
-            mcp = server.create_mcp_server(port=args.port)
-
-            logger.info(
-                f"📡 StreamableHTTP 服务器将在端口 {args.port} 启动 (端点: POST /mcp)"
-            )
-            await mcp.run_streamable_http_async()
+        # 并发运行所有任务
+        tasks = [task for task in [fastapi_task, mcp_task] if task]
+        if tasks:
+            await asyncio.gather(*tasks)
 
     except KeyboardInterrupt:
         logger.info("🛑 收到中断信号，正在关闭服务器...")
