@@ -13,6 +13,7 @@ from .services.akshare_service import AkshareService
 from .services.fundamentals_service import FundamentalsAnalysisService
 from .services.market_service import MarketDataService
 from .services.news_service import RealtimeNewsAggregator
+from .services.tavily_service import TavilyService
 from .utils.redis_cache import get_redis_cache
 from ..config.settings import get_settings
 
@@ -71,6 +72,13 @@ class StockMCPServer:
         except Exception as e:
             logger.error(f"❌ 新闻服务初始化失败: {e}")
             self.news_service = None
+
+        try:
+            self.tavily_service = TavilyService(self.settings)
+            logger.info("✅ Tavily研究服务初始化成功")
+        except Exception as e:
+            logger.error(f"❌ Tavily研究服务初始化失败: {e}")
+            self.tavily_service = None
 
     def create_mcp_server(self, port: int = None) -> FastMCP:
         """创建并配置 FastMCP 服务器"""
@@ -167,6 +175,107 @@ class StockMCPServer:
             except Exception as e:
                 logger.error(f"获取最新新闻失败: {e}")
                 return f"❌ 获取 {symbol} 新闻失败: {str(e)}"
+
+        @mcp.tool()
+        async def perform_deep_research(
+            topic: str,
+            research_type: str = "general",
+            symbols: list[str] = None,
+        ) -> str:
+            """对指定主题或公司进行深入的网络搜索和研究，返回一份总结报告。
+            此工具用于探索性分析，与其它获取特定数据的工具形成互补。
+
+            Args:
+                topic: 需要研究的核心主题。例如 "半导体行业的最新技术突破" 或 "AI芯片市场前景"。
+                research_type: 研究类型。可选值: 'general' (通用), 'company_profile' (公司分析), 'competitor_analysis' (竞品分析), 'industry_analysis' (行业分析)。默认为 'general'。
+                symbols: (可选) 相关的股票代码列表。例如 ['NVDA', 'AMD']。当进行公司或竞品分析时，提供此参数可以获得更精确的结果。
+
+            Returns:
+                一份Markdown格式的深度研究报告。
+            """
+            if not self.tavily_service or not self.tavily_service.is_available():
+                return "❌ 深度研究服务当前不可用，请检查 TAVILY_API_KEY 配置。"
+
+            try:
+                # 1. 构建查询
+                query = self._build_query(topic, research_type, symbols)
+                logger.info(f"🔬 [深度研究] 类型: {research_type}, 最终查询: '{query}'")
+
+                # 2. 执行搜索
+                search_result = self.tavily_service.search(
+                    query=query,
+                    search_depth="advanced",
+                    max_results=7,
+                    include_answer=True,
+                )
+
+                if not search_result:
+                    return f"❌ 未能获取关于 '{query}' 的研究结果。"
+
+                # 3. 格式化报告
+                return self._format_research_report(topic, search_result)
+
+            except Exception as e:
+                logger.error(f"执行深度研究失败: {e}")
+                return f"❌ 执行关于 '{topic}' 的深度研究时发生错误: {str(e)}"
+
+    def _build_query(
+        self, topic: str, research_type: str, symbols: list[str] | None
+    ) -> str:
+        """根据研究类型和参数构建更精确的Tavily查询语句"""
+        if not symbols or research_type not in [
+            "company_profile",
+            "competitor_analysis",
+        ]:
+            return topic
+
+        # 获取内部基本面数据以丰富查询
+        internal_data_summary = []
+        if self.fundamentals_service:
+            for symbol in symbols:
+                try:
+                    data = self.fundamentals_service.get_fundamental_data(symbol)
+                    summary = (
+                        f"{data.company_name}({symbol}): "
+                        f"市值 {self.fundamentals_service._format_number(data.market_cap)}元, "
+                        f"P/E {data.pe_ratio:.2f}, "
+                        f"ROE {data.roe:.2f}%"
+                    )
+                    internal_data_summary.append(summary)
+                except Exception as e:
+                    logger.warning(f"获取 {symbol} 内部数据失败: {e}")
+
+        internal_summary_str = "; ".join(internal_data_summary)
+
+        if research_type == "company_profile":
+            return (
+                f"深入分析公司 {symbols[0]} ({topic}) 的业务模式、核心竞争力、财务状况和未来增长前景。"
+                f"已知信息: {internal_summary_str}"
+            )
+        elif research_type == "competitor_analysis":
+            symbol_str = ", ".join(symbols)
+            return (
+                f"对比分析 {symbol_str} 这几家公司在 '{topic}' 领域的竞争格局、"
+                f"各自的优势与劣势、市场份额和未来战略。已知信息: {internal_summary_str}"
+            )
+
+        return topic
+
+    def _format_research_report(self, topic: str, search_result: dict) -> str:
+        """格式化深度研究报告"""
+        report = f"# 深度研究报告: {topic}\n\n"
+
+        if search_result.get("answer"):
+            report += f"## 核心摘要 (AI生成)\n\n{search_result['answer']}\n\n"
+
+        if search_result.get("results"):
+            report += "## 关键信息来源与摘录\n\n"
+            for i, item in enumerate(search_result["results"]):
+                report += f"### {i+1}. [{item.get('title', '无标题')}]({item.get('url', '#')})\n"
+                report += f"**来源**: {item.get('source', '未知')}\n"
+                report += f"> {item.get('content', '无内容')}\n\n---\n\n"
+
+        return report
 
 
 async def run_mcp_server():

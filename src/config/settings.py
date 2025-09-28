@@ -54,6 +54,7 @@ class Settings:
         self.finnhub_api_key: Optional[str] = os.getenv("FINNHUB_API_KEY")
         self.alpha_vantage_api_key: Optional[str] = os.getenv("ALPHA_VANTAGE_API_KEY")
         self.newsapi_key: Optional[str] = os.getenv("NEWSAPI_KEY")
+        self.tavily_api_key: Optional[str] = os.getenv("TAVILY_API_KEY")
 
         # 缓存配置
         self.cache_ttl: int = int(os.getenv("CACHE_TTL", "3600"))  # 1小时

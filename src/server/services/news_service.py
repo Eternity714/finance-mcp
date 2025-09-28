@@ -9,6 +9,7 @@ from dataclasses import dataclass
 # 从项目配置中导入Settings
 from ...config.settings import Settings
 from .akshare_service import AkshareService
+from .tavily_service import TavilyService
 
 # 导入统一的股票代码处理器
 from ..utils.symbol_processor import get_symbol_processor
@@ -43,9 +44,15 @@ class RealtimeNewsAggregator:
         self.finnhub_key = settings.finnhub_api_key
         self.alpha_vantage_key = settings.alpha_vantage_api_key
         self.newsapi_key = settings.newsapi_key
+
+        # 初始化 Tavily 服务
+        self.tavily_service = TavilyService(settings)
+
         print("✅ RealtimeNewsAggregator 初始化成功")
         if not self.finnhub_key:
             print("⚠️ FINNHUB_API_KEY 未配置")
+        if not self.tavily_service.is_available():
+            print("⚠️ Tavily 服务未配置或初始化失败，将跳过深度研究")
 
     # --- 2. 修改核心数据获取函数，使其在无数据时抛出异常 ---
     def get_realtime_stock_news(
@@ -103,6 +110,15 @@ class RealtimeNewsAggregator:
         except Exception as e:
             print(f"❌ 调用中文财经新闻源时出错: {e}")
 
+        # 5. Tavily 深度网络搜索 (作为补充)
+        if self.tavily_service.is_available():
+            try:
+                query = f"关于 {symbol_info.get('name', ticker)} ({ticker}) 的最新市场分析、新闻和深度见解"
+                tavily_news = self._get_tavily_research_as_news(query)
+                all_news.extend(tavily_news)
+            except Exception as e:
+                print(f"❌ 调用 Tavily 研究时出错: {e}")
+
         # --- 核心改动 ---
         # 在尝试所有新闻源后，如果列表仍为空，则抛出异常
         if not all_news:
@@ -112,6 +128,45 @@ class RealtimeNewsAggregator:
 
         unique_news = self._deduplicate_news(all_news)
         return sorted(unique_news, key=lambda x: x.publish_time, reverse=True)
+
+    def _get_tavily_research_as_news(self, query: str) -> List[NewsItem]:
+        """使用 Tavily 进行深度研究，并将结果转换为 NewsItem 格式"""
+        search_result = self.tavily_service.search(
+            query, search_depth="basic", max_results=5
+        )
+        if not search_result or not search_result.get("results"):
+            return []
+
+        news_items = []
+        # 首先，将 Tavily 的 AI 总结答案作为一个特殊的新闻项
+        if search_result.get("answer"):
+            news_items.append(
+                NewsItem(
+                    title="[Tavily AI 总结]",
+                    content=search_result["answer"],
+                    source="Tavily AI",
+                    publish_time=datetime.now(),
+                    url="",
+                    urgency="high",
+                    relevance_score=1.0,
+                )
+            )
+
+        # 然后，处理具体的搜索结果
+        for item in search_result["results"]:
+            news_items.append(
+                NewsItem(
+                    title=item.get("title", ""),
+                    content=item.get("content", ""),
+                    source=item.get("source", "Tavily"),
+                    publish_time=datetime.now(),  # Tavily不提供发布时间，使用当前时间
+                    url=item.get("url", ""),
+                    urgency="medium",
+                    relevance_score=item.get("score", 0.8),
+                )
+            )
+        print(f"✅ [Tavily] 获取到 {len(news_items)} 条研究结果")
+        return news_items
 
     def _get_standardized_ticker_for_news(self, ticker: str, stock_info: dict) -> str:
         """
@@ -199,14 +254,21 @@ class RealtimeNewsAggregator:
         text = (title + " " + content).lower()
         high_urgency = [
             "breaking",
-            "urgent",
             "alert",
+            "urgent",
             "halt",
             "suspend",
+            "investigation",
+            "lawsuit",
+            "warning",
             "突发",
             "紧急",
             "暂停",
             "重大",
+            "调查",
+            "诉讼",
+            "警告",
+            "违规",
         ]
         medium_urgency = [
             "earnings",
@@ -214,10 +276,19 @@ class RealtimeNewsAggregator:
             "announce",
             "merger",
             "acquisition",
+            "partnership",
+            "guidance",
+            "outlook",
+            "new product",
+            "launch",
             "财报",
             "发布",
             "宣布",
             "并购",
+            "合作",
+            "新品",
+            "指引",
+            "展望",
         ]
 
         if any(k in text for k in high_urgency):

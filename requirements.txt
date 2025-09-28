@@ -120,3 +120,4 @@ Werkzeug
 xlrd
 yarl
 yfinance
+tavily-python
