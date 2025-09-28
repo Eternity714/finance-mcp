@@ -14,6 +14,11 @@ except Exception:  # 允许在精简环境下缺失
     Retry = None  # type: ignore
 
 try:
+    from ..utils.symbol_processor import get_symbol_processor
+except (ImportError, ModuleNotFoundError):
+    get_symbol_processor = None
+
+try:
     import akshare as ak
 except ImportError:
     ak = None
@@ -236,24 +241,8 @@ class AkshareService:
             return financial_data
 
         except Exception as e:
-            logger.error(f"❌ AKShare获取{symbol}财务数据失败: {e}")
+            logger.exception(f"❌ AKShare获取{symbol}财务数据失败: {e}")
             return {}
-
-    # ---------------- 港股工具 ----------------
-    def _normalize_hk(self, symbol: str) -> str:
-        s = symbol.replace(".HK", "").replace(".hk", "")
-        return s.zfill(5) if s.isdigit() else s
-
-    # ---------------- 美股工具 ----------------
-    def _normalize_us(self, symbol: str) -> str:
-        """标准化美股代码"""
-        # 美股代码通常不需要特殊处理，直接返回
-        return (
-            symbol.upper()
-            .replace(".US", "")
-            .replace(".NASDAQ", "")
-            .replace(".NYSE", "")
-        )
 
     def get_us_stock_name_by_symbol(self, symbol: str) -> str:
         """
@@ -289,7 +278,8 @@ class AkshareService:
             "MA": "万事达卡",
         }
 
-        code = self._normalize_us(symbol)
+        processor = get_symbol_processor()
+        code = processor.get_akshare_format(symbol)
         if code in common_us_stocks:
             logger.info(f"✅ 使用预设名称: {symbol} -> {common_us_stocks[code]}")
             return common_us_stocks[code]
@@ -298,7 +288,9 @@ class AkshareService:
             return f"美股{symbol}"
 
     def get_hk_daily(self, symbol: str, start_date: str, end_date: str) -> pd.DataFrame:
-        code = self._normalize_hk(symbol)
+        processor = get_symbol_processor()
+        code = processor.get_akshare_format(symbol)
+
         result = [None]
         exception = [None]
 
@@ -320,7 +312,7 @@ class AkshareService:
         if t.is_alive():
             raise TimeoutError(f"获取港股 {symbol} 日线超时")
         if exception[0]:
-            raise exception[0]
+            raise exception[0] from None
         df = result[0]
         if df is None or df.empty:
             raise ValueError(f"未获取到港股 {symbol} 在 {start_date}~{end_date} 的日线")
@@ -344,7 +336,8 @@ class AkshareService:
 
     def get_us_daily(self, symbol: str, start_date: str, end_date: str) -> pd.DataFrame:
         """获取美股日线数据（使用新浪美股历史数据接口）"""
-        code = self._normalize_us(symbol)
+        processor = get_symbol_processor()
+        code = processor.get_akshare_format(symbol)
         result = [None]
         exception = [None]
 
@@ -396,7 +389,7 @@ class AkshareService:
         if t.is_alive():
             logger.error(f"⚠️ 获取美股日线数据超时: {symbol}")
             raise TimeoutError(f"获取美股 {symbol} 日线超时")
-        if exception[0]:
+        if exception[0] is not None:
             raise exception[0]
 
         df = result[0]
@@ -445,7 +438,8 @@ class AkshareService:
             }
 
         try:
-            code = self._normalize_hk(symbol)
+            processor = get_symbol_processor()
+            code = processor.get_akshare_format(symbol)
             logger.info(f"🇭🇰 获取港股信息: {code}")
 
             # 1. 优先获取详细的公司资料信息
@@ -531,7 +525,8 @@ class AkshareService:
             }
 
         try:
-            code = self._normalize_us(symbol)
+            processor = get_symbol_processor()
+            code = processor.get_akshare_format(symbol)
             logger.info(f"🇺🇸 获取美股信息: {code}")
 
             # 获取美股名称
@@ -594,7 +589,8 @@ class AkshareService:
             return {}
 
         try:
-            code = self._normalize_hk(symbol)
+            processor = get_symbol_processor()
+            code = processor.get_akshare_format(symbol)
             logger.info(f"🇭🇰 AKShare获取港股基本面数据: {code}")
 
             fundamentals = {}
@@ -648,7 +644,8 @@ class AkshareService:
             return {}
 
         try:
-            code = self._normalize_us(symbol)
+            processor = get_symbol_processor()
+            code = processor.get_akshare_format(symbol)
             logger.info(f"🇺🇸 AKShare获取美股基本面数据: {code}")
 
             fundamentals = {}
@@ -670,6 +667,8 @@ class AkshareService:
 
     def _get_us_market_data(self, code: str) -> Dict[str, Any]:
         """获取美股市场数据（使用缓存优化版本）"""
+        processor = get_symbol_processor()
+        code = processor.get_akshare_format(code)
         try:
             # 优先从缓存获取美股市场数据
             stock_data = self.market_cache.get_us_stock_data(code)
@@ -725,6 +724,8 @@ class AkshareService:
 
     def _get_hk_security_profile(self, code: str) -> Dict[str, Any]:
         """获取港股证券资料"""
+        processor = get_symbol_processor()
+        code = processor.get_akshare_format(code)
         result = [None]
         exception = [None]
 
@@ -759,6 +760,8 @@ class AkshareService:
 
     def _get_hk_company_profile(self, code: str) -> Dict[str, Any]:
         """获取港股公司资料"""
+        processor = get_symbol_processor()
+        code = processor.get_akshare_format(code)
         result = [None]
         exception = [None]
 
@@ -793,6 +796,8 @@ class AkshareService:
 
     def _get_hk_market_data(self, code: str) -> Dict[str, Any]:
         """获取港股市场数据（使用缓存优化版本）"""
+        processor = get_symbol_processor()
+        code = processor.get_akshare_format(code)
         try:
             # 优先从缓存获取港股市场数据
             stock_data = self.market_cache.get_hk_stock_data(code)
@@ -853,6 +858,8 @@ class AkshareService:
             Dict: 公司基本信息，如果获取失败返回None
         """
         try:
+            processor = get_symbol_processor()
+            code = processor.get_akshare_format(code)
             logger.info(f"🏢 获取港股公司资料: {code}")
 
             # 使用线程超时获取公司资料
@@ -1326,6 +1333,9 @@ def get_hk_stock_info_akshare(symbol: str) -> Dict[str, Any]:
         Dict: 港股信息
     """
     try:
+        """
+        获取AKShare服务实例
+        """
         service = get_akshare_service()
         return service.get_hk_info(symbol)
     except Exception as e:
@@ -1377,6 +1387,9 @@ def get_us_stock_info_akshare(symbol: str) -> Dict[str, Any]:
         Dict: 美股信息
     """
     try:
+        """
+        获取AKShare服务实例
+        """
         service = get_akshare_service()
         return service.get_us_info(symbol)
     except Exception as e:
