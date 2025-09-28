@@ -81,19 +81,12 @@ class MarketDataService:
 
         # 3. YFinance服务（用于美股）
         try:
-            self.services["yfinance"] = self._init_yfinance_service()
+            from .yfinance_service import YFinanceService
+
+            self.services["yfinance"] = YFinanceService()
             print("✅ YFinance数据源已启用")
         except Exception as e:
             print(f"⚠️ YFinance数据源初始化失败: {e}")
-
-    def _init_yfinance_service(self):
-        """初始化YFinance服务"""
-        try:
-            import yfinance as yf
-
-            return yf
-        except ImportError:
-            raise ImportError("yfinance库未安装")
 
     def get_stock_data(
         self, symbol: str, start_date: str, end_date: str
@@ -127,12 +120,13 @@ class MarketDataService:
         else:
             # 降级到原始方法
             market = self._determine_stock_market(symbol)
-            if market == "china":
-                data_sources = ["tushare", "akshare", "fallback"]
-            elif market == "hk":
-                data_sources = ["tushare", "akshare", "yfinance", "fallback"]
-            else:  # US market
-                data_sources = ["akshare", "yfinance", "fallback"]
+
+        if market == "china":
+            data_sources = ["tushare", "akshare", "fallback"]
+        elif market == "hk":
+            data_sources = ["yfinance", "tushare", "akshare", "fallback"]
+        else:  # US market
+            data_sources = ["yfinance", "akshare", "fallback"]
 
         print(f"🔍 检测股票 {symbol} 属于 {market} 市场")
 
@@ -263,31 +257,19 @@ class MarketDataService:
     ) -> Optional[pd.DataFrame]:
         """从YFinance获取数据"""
         try:
-            yf = self.services["yfinance"]
-            ticker = yf.Ticker(symbol)
-            data = ticker.history(start=start_date, end=end_date)
+            # 获取服务和代码处理器
+            yfinance_service = self.services["yfinance"]
+            processor = get_symbol_processor()
 
-            if data.empty:
-                return None
+            # 标准化代码为 yfinance 格式
+            yfinance_symbol = processor.get_yfinance_format(symbol)
+            print(f"🌍 使用YFinance获取数据: {symbol} -> {yfinance_symbol}")
 
-            # 重命名列以匹配标准格式
-            data.reset_index(inplace=True)
-            data.rename(
-                columns={
-                    "Date": "date",
-                    "Open": "open",
-                    "High": "high",
-                    "Low": "low",
-                    "Close": "close",
-                    "Volume": "volume",
-                },
-                inplace=True,
+            return yfinance_service.get_stock_daily(
+                yfinance_symbol, start_date, end_date
             )
-
-            return data
-
         except Exception as e:
-            print(f"YFinance获取数据失败: {e}")
+            print(f"❌ YFinance获取数据失败: {e}")
             return None
 
     def _get_fallback_data(
@@ -399,22 +381,22 @@ class MarketDataService:
     def _get_yfinance_info(self, symbol: str) -> Dict[str, Any]:
         """从YFinance获取股票信息"""
         try:
-            yf = self.services["yfinance"]
-            ticker = yf.Ticker(symbol)
-            info = ticker.info
+            yfinance_service = self.services["yfinance"]
+            processor = get_symbol_processor()
+            yfinance_symbol = processor.get_yfinance_format(symbol)
 
-            return {
-                "symbol": symbol,
-                "name": info.get("longName", ""),
-                "sector": info.get("sector", ""),
-                "industry": info.get("industry", ""),
-                "market_cap": info.get("marketCap", 0),
-                "pe_ratio": info.get("forwardPE", 0),
-                "dividend_yield": info.get("dividendYield", 0),
-            }
-
+            info = yfinance_service.get_stock_info(yfinance_symbol)
+            if info:
+                return {
+                    "symbol": symbol,
+                    "name": info.get("longName", ""),
+                    "sector": info.get("sector", ""),
+                    "industry": info.get("industry", ""),
+                    "market_cap": info.get("marketCap", 0),
+                }
+            return {}
         except Exception as e:
-            print(f"YFinance获取股票信息失败: {e}")
+            print(f"❌ YFinance获取股票信息失败: {e}")
             return {}
 
     def generate_stock_report(self, symbol: str, start_date: str, end_date: str) -> str:

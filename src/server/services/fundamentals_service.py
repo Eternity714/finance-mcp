@@ -126,9 +126,9 @@ class FundamentalsAnalysisService:
 
         # 3. YFinance基本面数据（用于美股）
         try:
-            import yfinance as yf
+            from .yfinance_service import YFinanceService
 
-            self.services["yfinance"] = yf
+            self.services["yfinance"] = YFinanceService()
             print("✅ YFinance基本面数据源已启用")
         except Exception as e:
             print(f"⚠️ YFinance基本面数据源初始化失败: {e}")
@@ -803,11 +803,18 @@ class FundamentalsAnalysisService:
     def _get_yfinance_fundamentals(self, symbol: str) -> Optional[FundamentalData]:
         """从YFinance获取基本面数据"""
         try:
-            yf = self.services["yfinance"]
-            ticker = yf.Ticker(symbol)
-            info = ticker.info
+            # 获取服务和代码处理器
+            yfinance_service = self.services["yfinance"]
+            processor = get_symbol_processor()
 
-            if not info:
+            # 标准化代码为 yfinance 格式
+            yfinance_symbol = processor.get_yfinance_format(symbol)
+            print(f"🌍 使用YFinance获取基本面数据: {symbol} -> {yfinance_symbol}")
+
+            # 调用新服务获取数据
+            info = yfinance_service.get_fundamentals(yfinance_symbol)
+
+            if not info or "symbol" not in info:
                 return None
 
             return FundamentalData(
@@ -826,7 +833,7 @@ class FundamentalsAnalysisService:
             )
 
         except Exception as e:
-            print(f"YFinance基本面数据获取失败: {e}")
+            print(f"❌ YFinance基本面数据获取失败: {e}")
             return None
 
     def _get_fallback_fundamentals(

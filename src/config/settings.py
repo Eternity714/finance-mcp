@@ -64,6 +64,14 @@ class Settings:
         self.newsapi_key: Optional[str] = os.getenv("NEWSAPI_KEY")
         self.tavily_api_key: Optional[str] = os.getenv("TAVILY_API_KEY")
 
+        # 代理配置
+        self.http_proxy: Optional[str] = os.getenv("HTTP_PROXY") or os.getenv(
+            "http_proxy"
+        )
+        self.yfinance_proxy: Optional[str] = os.getenv(
+            "YFINANCE_PROXY"
+        )  # yfinance 专用代理
+
         # 缓存配置
         self.cache_ttl: int = _get_env_var_as_int("CACHE_TTL", "3600")  # 1小时
         self.market_cache_ttl: int = _get_env_var_as_int(
