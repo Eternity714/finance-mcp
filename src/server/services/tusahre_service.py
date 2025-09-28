@@ -806,10 +806,16 @@ class TushareService:
         stock_info = self.get_stock_info(symbol)
         data = self.get_stock_daily(symbol, start_date, end_date)
 
+        # 根据市场确定货币符号
+        market_info = StockUtils.get_market_info(symbol)
+        currency_symbol = "¥"  # 默认为人民币
+        if market_info["is_hk"]:
+            currency_symbol = "HK$"
+        elif market_info["is_us"]:
+            currency_symbol = "$"
         # --- 如果代码能执行到这里，说明所有数据都已成功获取 ---
         stock_name = stock_info.get("name", f"股票{symbol}")
         latest_data = data.iloc[-1]
-        current_price = f"¥{latest_data['close']:.2f}"
 
         change_pct_str = "N/A"
         if len(data) > 1:
@@ -824,8 +830,8 @@ class TushareService:
         )
 
         report = f"# {symbol} 股票数据分析\n\n"
-        report += f"## 📊 实时行情\n- 股票名称: {stock_name}\n- 股票代码: {symbol}\n- 当前价格: {current_price}\n- 涨跌幅: {change_pct_str}\n- 成交量: {volume_str}\n- 数据来源: Tushare\n\n"
-        report += f"## 📈 历史数据概览\n- 数据期间: {start_date} 至 {end_date}\n- 数据条数: {len(data)}条\n- 期间最高: ¥{data['high'].max():.2f}\n- 期间最低: ¥{data['low'].min():.2f}\n\n"
+        report += f"## 📊 实时行情\n- 股票名称: {stock_name}\n- 股票代码: {symbol}\n- 当前价格: {currency_symbol}{latest_data['close']:.2f}\n- 涨跌幅: {change_pct_str}\n- 成交量: {volume_str}\n- 数据来源: Tushare\n\n"
+        report += f"## 📈 历史数据概览\n- 数据期间: {start_date} 至 {end_date}\n- 数据条数: {len(data)}条\n- 期间最高: {currency_symbol}{data['high'].max():.2f}\n- 期间最低: {currency_symbol}{data['low'].min():.2f}\n\n"
         report += "## 📋 最新交易数据 (最近5天)\n"
 
         display_columns = ["date", "open", "high", "low", "close", "volume", "涨跌幅"]

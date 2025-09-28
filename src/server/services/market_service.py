@@ -430,6 +430,21 @@ class MarketDataService:
         end_date: str,
     ) -> str:
         """生成Markdown格式的分析报告"""
+        # 根据市场确定货币符号
+        market = self._determine_stock_market(symbol)
+        currency_symbol = "¥"  # 默认为人民币
+        if market == "hk":
+            currency_symbol = "HK$"
+        elif market == "us":
+            currency_symbol = "$"
+
+        # 修复中文显示乱码问题
+        if "name" in info and isinstance(info["name"], bytes):
+            try:
+                info["name"] = info["name"].decode("utf-8")
+            except:
+                info["name"] = "未知"
+
         if data.empty:
             return f"❌ {symbol} 无可用数据"
 
@@ -453,10 +468,10 @@ class MarketDataService:
 - **数据来源**: {data['source'].iloc[0] if 'source' in data.columns else '未知'}
 
 ## 💰 价格表现
-- **当前价格**: ¥{latest['close']:.2f}
-- **期间涨跌**: ¥{price_change:+.2f} ({price_change_pct:+.2f}%)
-- **期间最高**: ¥{high_52w:.2f}
-- **期间最低**: ¥{low_52w:.2f}
+- **当前价格**: {currency_symbol}{latest['close']:.2f}
+- **期间涨跌**: {currency_symbol}{price_change:+.2f} ({price_change_pct:+.2f}%)
+- **期间最高**: {currency_symbol}{high_52w:.2f}
+- **期间最低**: {currency_symbol}{low_52w:.2f}
 - **平均成交量**: {avg_volume:,.0f}
 
 ## 📈 技术指标
@@ -465,13 +480,17 @@ class MarketDataService:
         # 计算简单移动平均
         if len(data) >= 5:
             data["ma5"] = data["close"].rolling(5).mean()
-            ma5_current = data["ma5"].iloc[-1]
-            report += f"- **5日均线**: ¥{ma5_current:.2f}\n"
+            ma5_current = (
+                data["ma5"].iloc[-1] if not pd.isna(data["ma5"].iloc[-1]) else 0
+            )
+            report += f"- **5日均线**: {currency_symbol}{ma5_current:.2f}\n"
 
         if len(data) >= 20:
             data["ma20"] = data["close"].rolling(20).mean()
-            ma20_current = data["ma20"].iloc[-1]
-            report += f"- **20日均线**: ¥{ma20_current:.2f}\n"
+            ma20_current = (
+                data["ma20"].iloc[-1] if not pd.isna(data["ma20"].iloc[-1]) else 0
+            )
+            report += f"- **20日均线**: {currency_symbol}{ma20_current:.2f}\n"
 
         # 趋势分析
         if len(data) >= 5:

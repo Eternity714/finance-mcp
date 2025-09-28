@@ -1057,6 +1057,17 @@ class AkshareService:
         try:
             info = self.get_stock_info(symbol)
             data = self.get_stock_daily(symbol, start_date, end_date)
+
+            # 根据市场确定货币符号
+            from ..utils.stock_market_classifier import classify_stock
+
+            classification = classify_stock(symbol)
+            currency_symbol = "¥"  # 默认为人民币
+            if classification["is_hk"]:
+                currency_symbol = "HK$"
+            elif classification["is_us"]:
+                currency_symbol = "$"
+
             name = info.get("name", symbol)
             latest = data.iloc[-1]
             prev_close = data.iloc[-2]["close"] if len(data) > 1 else latest["close"]
@@ -1069,13 +1080,13 @@ class AkshareService:
             report = f"# {symbol} AKShare 日线报告\n\n"
             report += (
                 f"## 基本行情\n- 名称: {name}\n- 代码: {symbol}\n"
-                f"- 最新收盘: {latest['close']:.2f}\n- 涨跌幅: {change_pct:+.2f}%\n"
+                f"- 最新收盘: {currency_symbol}{latest['close']:.2f}\n- 涨跌幅: {change_pct:+.2f}%\n"
                 f"- 成交量: {vol_str}\n- 数据来源: AKShare\n\n"
             )
             report += (
                 f"## 期间概览\n- 区间: {start_date} ~ {end_date}\n- 条数: {len(data)}\n"
-                f"- 最高: {data['high'].max():.2f}\n"
-                f"- 最低: {data['low'].min():.2f}\n\n"
+                f"- 最高: {currency_symbol}{data['high'].max():.2f}\n"
+                f"- 最低: {currency_symbol}{data['low'].min():.2f}\n\n"
             )
             cols = [
                 c

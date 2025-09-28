@@ -868,6 +868,14 @@ class FundamentalsAnalysisService:
 
     def _format_fundamentals_report(self, data: FundamentalData) -> str:
         """格式化基本面分析报告（动态显示有效数据）"""
+        # 根据市场确定货币符号
+        processor = get_symbol_processor()
+        market_simple_name = processor.get_market_simple_name(data.symbol)
+        currency_symbol = "¥"  # 默认为人民币
+        if market_simple_name == "hk":
+            currency_symbol = "HK$"
+        elif market_simple_name == "us":
+            currency_symbol = "$"
 
         # 估值分析
         valuation_analysis = self._analyze_valuation(data)
@@ -886,7 +894,9 @@ class FundamentalsAnalysisService:
 
         # 只有当市值大于0时才显示
         if data.market_cap > 0:
-            basic_info.append(f"- **市值**: {self._format_number(data.market_cap)}元")
+            basic_info.append(
+                f"- **市值**: {self._format_number(data.market_cap)}{currency_symbol.replace('$', '美元')}"
+            )
 
         basic_info.extend(
             [
@@ -910,11 +920,11 @@ class FundamentalsAnalysisService:
             profitability_metrics.append(f"- **总资产收益率 (ROA)**: {data.roa:.2f}%")
         if data.revenue > 0:
             profitability_metrics.append(
-                f"- **营业收入**: {self._format_number(data.revenue)}元"
+                f"- **营业收入**: {self._format_number(data.revenue)}{currency_symbol.replace('$', '美元')}"
             )
         if data.net_income > 0:
             profitability_metrics.append(
-                f"- **净利润**: {self._format_number(data.net_income)}元"
+                f"- **净利润**: {self._format_number(data.net_income)}{currency_symbol.replace('$', '美元')}"
             )
         if hasattr(data, "gross_profit_margin") and data.gross_profit_margin > 0:
             profitability_metrics.append(
@@ -950,15 +960,19 @@ class FundamentalsAnalysisService:
             and data.cash_flow_from_operations != 0
         ):
             financial_health_metrics.append(
-                f"- **经营活动现金流**: {self._format_number(data.cash_flow_from_operations)}元"
+                f"- **经营活动现金流**: {self._format_number(data.cash_flow_from_operations)}{currency_symbol.replace('$', '美元')}"
             )
 
         # 构建每股指标
         per_share_metrics = []
         if hasattr(data, "eps") and data.eps > 0:
-            per_share_metrics.append(f"- **每股收益 (EPS)**: {data.eps:.2f}元")
+            per_share_metrics.append(
+                f"- **每股收益 (EPS)**: {data.eps:.2f}{currency_symbol.replace('$', '美元')}"
+            )
         if hasattr(data, "bps") and data.bps > 0:
-            per_share_metrics.append(f"- **每股净资产 (BPS)**: {data.bps:.2f}元")
+            per_share_metrics.append(
+                f"- **每股净资产 (BPS)**: {data.bps:.2f}{currency_symbol.replace('$', '美元')}"
+            )
 
         # 开始构建报告
         report = f"# {data.symbol} 基本面分析报告\n\n"
@@ -1088,7 +1102,7 @@ class FundamentalsAnalysisService:
 
         # 估值因素
         if 0 < data.pe_ratio < 20:
-            positive_factors.append("估值合理")
+            positive_factors.append("估值合理 (P/E < 20)")
         elif data.pe_ratio > 30:
             negative_factors.append("估值偏高")
 
@@ -1096,13 +1110,13 @@ class FundamentalsAnalysisService:
         if data.roe > 12:
             positive_factors.append("盈利能力强")
         elif data.roe < 5:
-            negative_factors.append("盈利能力弱")
+            negative_factors.append("盈利能力弱 (ROE < 5%)")
 
         # 财务健康
         if data.debt_to_equity < 0.6:
             positive_factors.append("财务健康")
         elif data.debt_to_equity > 1.2:
-            negative_factors.append("负债较重")
+            negative_factors.append("负债较重 (负债权益比 > 1.2)")
 
         advice = ""
         if len(positive_factors) > len(negative_factors):
@@ -1120,6 +1134,7 @@ class FundamentalsAnalysisService:
 
     def _format_number(self, number: float) -> str:
         """格式化数字显示"""
+        number = float(number)
         if number >= 1e12:
             return f"{number/1e12:.2f}万亿"
         elif number >= 1e8:
@@ -1127,7 +1142,7 @@ class FundamentalsAnalysisService:
         elif number >= 1e4:
             return f"{number/1e4:.2f}万"
         else:
-            return f"{number:.2f}"
+            return f"{number:,.2f}"
 
     def compare_stocks(self, symbols: List[str]) -> str:
         """对比多只股票的基本面"""
