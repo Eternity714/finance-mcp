@@ -18,6 +18,14 @@ except ImportError:
     pass
 
 
+def _get_env_var_as_int(name: str, default: str) -> int:
+    """安全地从环境变量获取整数值，移除行内注释。"""
+    value_str = os.getenv(name, default)
+    # 移除注释和两边的空格
+    cleaned_value = value_str.split("#")[0].strip()
+    return int(cleaned_value)
+
+
 class Settings:
     """应用配置"""
 
@@ -31,7 +39,7 @@ class Settings:
 
         # 服务器配置
         self.host: str = os.getenv("HOST", "127.0.0.1")
-        self.port: int = int(os.getenv("PORT", "8000"))
+        self.port: int = _get_env_var_as_int("PORT", "8000")
         self.debug: bool = os.getenv("DEBUG", "false").lower() == "true"
 
         # MCP 服务器配置
@@ -40,12 +48,12 @@ class Settings:
 
         # Redis配置
         self.redis_host: str = os.getenv("REDIS_HOST", "localhost")
-        self.redis_port: int = int(os.getenv("REDIS_PORT", "6379"))
-        self.redis_db: int = int(os.getenv("REDIS_DB", "0"))
+        self.redis_port: int = _get_env_var_as_int("REDIS_PORT", "6379")
+        self.redis_db: int = _get_env_var_as_int("REDIS_DB", "0")
         self.redis_password: Optional[str] = os.getenv("REDIS_PASSWORD")
 
         # AKShare配置
-        self.akshare_timeout: int = int(os.getenv("AKSHARE_TIMEOUT", "30"))
+        self.akshare_timeout: int = _get_env_var_as_int("AKSHARE_TIMEOUT", "30")
 
         # Tushare配置
         self.TUSHARE_TOKEN: Optional[str] = os.getenv("TUSHARE_TOKEN")
@@ -57,9 +65,9 @@ class Settings:
         self.tavily_api_key: Optional[str] = os.getenv("TAVILY_API_KEY")
 
         # 缓存配置
-        self.cache_ttl: int = int(os.getenv("CACHE_TTL", "3600"))  # 1小时
-        self.market_cache_ttl: int = int(
-            os.getenv("MARKET_CACHE_TTL", "86400")
+        self.cache_ttl: int = _get_env_var_as_int("CACHE_TTL", "3600")  # 1小时
+        self.market_cache_ttl: int = _get_env_var_as_int(
+            "MARKET_CACHE_TTL", "86400"
         )  # 24小时
 
         # 日志配置
