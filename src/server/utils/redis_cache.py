@@ -15,6 +15,12 @@ import hashlib
 
 logger = logging.getLogger(__name__)
 
+# 导入统一的股票代码处理器
+try:
+    from .symbol_processor import get_symbol_processor
+except (ImportError, ModuleNotFoundError):
+    get_symbol_processor = None
+
 
 class RedisCache:
     """Redis缓存管理器"""
@@ -552,31 +558,46 @@ class AKShareMarketCache:
         Returns:
             dict: A股股票市场数据或None
         """
-        return self._get_stock_data_by_market("china", symbol)
+        if get_symbol_processor:
+            processor = get_symbol_processor()
+            clean_symbol = processor.get_cache_key(symbol)
+        else:
+            clean_symbol = symbol
+        return self._get_stock_data_by_market("china", clean_symbol)
 
     def get_hk_stock_data(self, symbol: str) -> Optional[dict]:
         """
         从缓存的港股全市场数据中获取单只股票数据
 
         Args:
-            symbol: 港股代码（不带后缀）
+            symbol: 港股代码
 
         Returns:
             dict: 港股股票市场数据或None
         """
-        return self._get_stock_data_by_market("hk", symbol)
+        if get_symbol_processor:
+            processor = get_symbol_processor()
+            clean_symbol = processor.get_cache_key(symbol)
+        else:
+            clean_symbol = symbol
+        return self._get_stock_data_by_market("hk", clean_symbol)
 
     def get_us_stock_data(self, symbol: str) -> Optional[dict]:
         """
         从缓存的美股全市场数据中获取单只股票数据
 
         Args:
-            symbol: 美股代码
+            symbol: 美股代码 (e.g., "AAPL", "AAPL.US")
 
         Returns:
             dict: 美股股票市场数据或None
         """
-        return self._get_stock_data_by_market("us", symbol)
+        if get_symbol_processor:
+            processor = get_symbol_processor()
+            clean_symbol = processor.get_cache_key(symbol)
+        else:
+            clean_symbol = symbol
+        return self._get_stock_data_by_market("us", clean_symbol)
 
     def _get_stock_data_by_market(
         self, market_type: str, symbol: str
@@ -586,7 +607,7 @@ class AKShareMarketCache:
 
         Args:
             market_type: 市场类型 ("china", "hk", "us")
-            symbol: 股票代码
+            symbol: 标准化后的股票代码
 
         Returns:
             dict: 股票市场数据或None

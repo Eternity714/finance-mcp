@@ -191,21 +191,30 @@ class MarketDataService:
     ) -> Optional[pd.DataFrame]:
         """根据市场类型从Tushare获取数据"""
         try:
+            # 获取服务和代码处理器
             tushare_service = self.services["tushare"]
+            processor = get_symbol_processor()
+
+            # 在调用具体方法前，先将 symbol 标准化为 Tushare 需要的格式
+            tushare_symbol = processor.get_tushare_format(symbol)
 
             if market == "china":
                 # 中国A股市场，使用标准接口
-                print(f"📈 使用Tushare获取A股数据: {symbol}")
-                return tushare_service.get_stock_daily(symbol, start_date, end_date)
+                print(f"📈 使用Tushare获取A股数据: {symbol} -> {tushare_symbol}")
+                return tushare_service.get_stock_daily(
+                    tushare_symbol, start_date, end_date
+                )
 
             elif market == "hk":
                 # 港股市场，使用港股接口
-                print(f"🇭🇰 使用Tushare获取港股数据: {symbol}")
-                return tushare_service.get_hk_daily(symbol, start_date, end_date)
+                print(f"🇭🇰 使用Tushare获取港股数据: {symbol} -> {tushare_symbol}")
+                return tushare_service.get_hk_daily(
+                    tushare_symbol, start_date, end_date
+                )
 
             else:
                 # 美股市场，Tushare不支持，跳过
-                print(f"⚠️ Tushare不支持美股市场，跳过: {symbol}")
+                print(f"⚠️ Tushare不支持美股市场，跳过: {symbol} -> {tushare_symbol}")
                 return None
 
         except Exception as e:
@@ -217,22 +226,33 @@ class MarketDataService:
     ) -> Optional[pd.DataFrame]:
         """从AKShare获取数据，根据市场类型调用不同接口"""
         try:
+            # 获取服务和代码处理器
             akshare_service = self.services["akshare"]
+            processor = get_symbol_processor()
+
+            # 在调用具体方法前，先将 symbol 标准化为 AKShare 需要的格式
+            akshare_symbol = processor.get_akshare_format(symbol)
 
             if market == "china":
                 # 中国A股市场
-                print(f"📈 使用AKShare获取A股数据: {symbol}")
-                return akshare_service.get_stock_daily(symbol, start_date, end_date)
+                print(f"📈 使用AKShare获取A股数据: {symbol} -> {akshare_symbol}")
+                return akshare_service.get_stock_daily(
+                    akshare_symbol, start_date, end_date
+                )
 
             elif market == "hk":
                 # 港股市场
-                print(f"🇭🇰 使用AKShare获取港股数据: {symbol}")
-                return akshare_service.get_hk_daily(symbol, start_date, end_date)
+                print(f"🇭🇰 使用AKShare获取港股数据: {symbol} -> {akshare_symbol}")
+                return akshare_service.get_hk_daily(
+                    akshare_symbol, start_date, end_date
+                )
 
             else:
                 # 美股市场，使用AKShare美股接口
-                print(f"🇺🇸 使用AKShare获取美股数据: {symbol}")
-                return akshare_service.get_us_daily(symbol, start_date, end_date)
+                print(f"🇺🇸 使用AKShare获取美股数据: {symbol} -> {akshare_symbol}")
+                return akshare_service.get_us_daily(
+                    akshare_symbol, start_date, end_date
+                )
 
         except Exception as e:
             print(f"❌ AKShare获取{market}市场数据失败: {symbol}, 错误: {e}")

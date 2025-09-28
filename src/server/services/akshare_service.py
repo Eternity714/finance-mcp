@@ -92,14 +92,8 @@ class AkshareService:
     def get_stock_daily(
         self, symbol: str, start_date: str, end_date: str
     ) -> pd.DataFrame:
-        code = (
-            symbol.replace(".SH", "")
-            .replace(".SZ", "")
-            .replace(".sh", "")
-            .replace(".sz", "")
-        )
         df = ak.stock_zh_a_hist(
-            symbol=code,
+            symbol=symbol,
             period="daily",
             start_date=start_date.replace("-", ""),
             end_date=end_date.replace("-", ""),
@@ -126,9 +120,8 @@ class AkshareService:
 
     # ---------------- A股基本信息 ----------------
     def get_stock_info(self, symbol: str) -> Dict[str, Any]:
-        code = symbol.replace(".SH", "").replace(".SZ", "")
         info_df = ak.stock_info_a_code_name()
-        row = info_df[info_df["code"] == code]
+        row = info_df[info_df["code"] == symbol]
         if row.empty:
             raise ValueError(f"未找到 {symbol} 的基本信息")
         return {
@@ -139,8 +132,7 @@ class AkshareService:
 
     # ---------------- 主要财务摘要（旧接口保留） ----------------
     def get_financial_abstract(self, symbol: str) -> pd.DataFrame:
-        code = symbol.replace(".SH", "").replace(".SZ", "")
-        df = ak.stock_financial_abstract(symbol=code)
+        df = ak.stock_financial_abstract(symbol=symbol)
         if df is None or df.empty:
             raise ValueError(f"未获取到 {symbol} 财务摘要")
         return df
@@ -160,17 +152,15 @@ class AkshareService:
             logger.error(f"❌ AKShare未连接，无法获取{symbol}财务数据")
             return {}
 
-        code = symbol.replace(".SH", "").replace(".SZ", "")
-
         try:
-            logger.info(f"🔍 开始获取{symbol}的AKShare财务数据")
+            logger.info(f"🔍 开始获取 {symbol} 的AKShare财务数据")
 
             financial_data: Dict[str, Optional[pd.DataFrame]] = {}
 
             # 1. 优先获取主要财务指标
             try:
-                logger.debug(f"📊 尝试获取{symbol}主要财务指标...")
-                main_indicators = ak.stock_financial_abstract(symbol=code)
+                logger.debug(f"📊 尝试获取 {symbol} 主要财务指标...")
+                main_indicators = ak.stock_financial_abstract(symbol=symbol)
                 if main_indicators is not None and not main_indicators.empty:
                     financial_data["main_indicators"] = main_indicators
                     logger.info(
@@ -180,13 +170,13 @@ class AkshareService:
                 else:
                     logger.warning(f"⚠️ {symbol}主要财务指标为空")
             except Exception as e:
-                logger.warning(f"❌ 获取{symbol}主要财务指标失败: {e}")
+                logger.warning(f"❌ 获取 {symbol} 主要财务指标失败: {e}")
 
             # 2. 尝试获取资产负债表
             try:
-                logger.debug(f"📊 尝试获取{symbol}资产负债表...")
+                logger.debug(f"📊 尝试获取 {symbol} 资产负债表...")
                 if hasattr(ak, "stock_balance_sheet_by_report_em"):
-                    balance_sheet = ak.stock_balance_sheet_by_report_em(symbol=code)
+                    balance_sheet = ak.stock_balance_sheet_by_report_em(symbol=symbol)
                     if balance_sheet is not None and not balance_sheet.empty:
                         financial_data["balance_sheet"] = balance_sheet
                         logger.debug(
@@ -195,13 +185,13 @@ class AkshareService:
                     else:
                         logger.debug(f"⚠️ {symbol}资产负债表为空")
             except Exception as e:
-                logger.debug(f"❌ 获取{symbol}资产负债表失败: {e}")
+                logger.debug(f"❌ 获取 {symbol} 资产负债表失败: {e}")
 
             # 3. 尝试获取利润表
             try:
-                logger.debug(f"📊 尝试获取{symbol}利润表...")
+                logger.debug(f"📊 尝试获取 {symbol} 利润表...")
                 if hasattr(ak, "stock_profit_sheet_by_report_em"):
-                    income_statement = ak.stock_profit_sheet_by_report_em(symbol=code)
+                    income_statement = ak.stock_profit_sheet_by_report_em(symbol=symbol)
                     if income_statement is not None and not income_statement.empty:
                         financial_data["income_statement"] = income_statement
                         logger.debug(
@@ -210,13 +200,13 @@ class AkshareService:
                     else:
                         logger.debug(f"⚠️ {symbol}利润表为空")
             except Exception as e:
-                logger.debug(f"❌ 获取{symbol}利润表失败: {e}")
+                logger.debug(f"❌ 获取 {symbol} 利润表失败: {e}")
 
             # 4. 尝试获取现金流量表
             try:
-                logger.debug(f"📊 尝试获取{symbol}现金流量表...")
+                logger.debug(f"📊 尝试获取 {symbol} 现金流量表...")
                 if hasattr(ak, "stock_cash_flow_sheet_by_report_em"):
-                    cash_flow = ak.stock_cash_flow_sheet_by_report_em(symbol=code)
+                    cash_flow = ak.stock_cash_flow_sheet_by_report_em(symbol=symbol)
                     if cash_flow is not None and not cash_flow.empty:
                         financial_data["cash_flow"] = cash_flow
                         logger.debug(
@@ -225,7 +215,7 @@ class AkshareService:
                     else:
                         logger.debug(f"⚠️ {symbol}现金流量表为空")
             except Exception as e:
-                logger.debug(f"❌ 获取{symbol}现金流量表失败: {e}")
+                logger.debug(f"❌ 获取 {symbol} 现金流量表失败: {e}")
 
             # 记录最终结果
             if financial_data:
@@ -241,7 +231,7 @@ class AkshareService:
             return financial_data
 
         except Exception as e:
-            logger.exception(f"❌ AKShare获取{symbol}财务数据失败: {e}")
+            logger.exception(f"❌ AKShare获取 {symbol} 财务数据失败: {e}")
             return {}
 
     def get_us_stock_name_by_symbol(self, symbol: str) -> str:
@@ -278,18 +268,14 @@ class AkshareService:
             "MA": "万事达卡",
         }
 
-        processor = get_symbol_processor()
-        code = processor.get_akshare_format(symbol)
-        if code in common_us_stocks:
-            logger.info(f"✅ 使用预设名称: {symbol} -> {common_us_stocks[code]}")
-            return common_us_stocks[code]
+        if symbol in common_us_stocks:
+            logger.info(f"✅ 使用预设名称: {symbol} -> {common_us_stocks[symbol]}")
+            return common_us_stocks[symbol]
         else:
             logger.info(f"⚠️ 使用默认名称: {symbol}")
             return f"美股{symbol}"
 
     def get_hk_daily(self, symbol: str, start_date: str, end_date: str) -> pd.DataFrame:
-        processor = get_symbol_processor()
-        code = processor.get_akshare_format(symbol)
 
         result = [None]
         exception = [None]
@@ -297,7 +283,7 @@ class AkshareService:
         def task():
             try:
                 result[0] = ak.stock_hk_hist(
-                    symbol=code,
+                    symbol=symbol,
                     period="daily",
                     start_date=start_date.replace("-", ""),
                     end_date=end_date.replace("-", ""),
@@ -336,20 +322,18 @@ class AkshareService:
 
     def get_us_daily(self, symbol: str, start_date: str, end_date: str) -> pd.DataFrame:
         """获取美股日线数据（使用新浪美股历史数据接口）"""
-        processor = get_symbol_processor()
-        code = processor.get_akshare_format(symbol)
         result = [None]
         exception = [None]
 
         def task():
             try:
-                logger.info(f"🇺🇸 使用新浪美股接口获取历史数据: {code}")
+                logger.info(f"🇺🇸 使用新浪美股接口获取历史数据: {symbol}")
                 # 使用AKShare的新浪美股历史数据接口
                 # adjust="" 返回未复权数据，adjust="qfq" 返回前复权数据
-                full_data = ak.stock_us_daily(symbol=code, adjust="")
+                full_data = ak.stock_us_daily(symbol=symbol, adjust="")
 
                 if full_data is None or full_data.empty:
-                    logger.warning(f"⚠️ 美股历史数据为空: {code}")
+                    logger.warning(f"⚠️ 美股历史数据为空: {symbol}")
                     result[0] = pd.DataFrame()
                     return
 
@@ -366,20 +350,20 @@ class AkshareService:
 
                     if filtered_data.empty:
                         logger.warning(
-                            f"⚠️ 指定日期范围内无美股数据: {code} ({start_date} ~ {end_date})"
+                            f"⚠️ 指定日期范围内无美股数据: {symbol} ({start_date} ~ {end_date})"
                         )
                     else:
                         logger.info(
-                            f"✅ 获取美股历史数据成功: {code}, {len(filtered_data)}条记录"
+                            f"✅ 获取美股历史数据成功: {symbol}, {len(filtered_data)}条记录"
                         )
 
                     result[0] = filtered_data
                 else:
-                    logger.warning(f"⚠️ 美股数据缺少日期列: {code}")
+                    logger.warning(f"⚠️ 美股数据缺少日期列: {symbol}")
                     result[0] = full_data
 
             except Exception as e:
-                logger.error(f"❌ 获取美股历史数据失败: {code}, 错误: {e}")
+                logger.error(f"❌ 获取美股历史数据失败: {symbol}, 错误: {e}")
                 exception[0] = e
 
         t = threading.Thread(target=task, daemon=True)
@@ -438,15 +422,13 @@ class AkshareService:
             }
 
         try:
-            processor = get_symbol_processor()
-            code = processor.get_akshare_format(symbol)
-            logger.info(f"🇭🇰 获取港股信息: {code}")
+            logger.info(f"🇭🇰 获取港股信息: {symbol}")
 
             # 1. 优先获取详细的公司资料信息
-            company_info = self._get_hk_company_basic_info(code)
+            company_info = self._get_hk_company_basic_info(symbol)
 
             # 2. 获取市场数据（价格等）
-            stock_data = self.market_cache.get_hk_stock_data(code)
+            stock_data = self.market_cache.get_hk_stock_data(symbol)
 
             # 合并公司信息和市场数据
             result = {
@@ -525,15 +507,13 @@ class AkshareService:
             }
 
         try:
-            processor = get_symbol_processor()
-            code = processor.get_akshare_format(symbol)
-            logger.info(f"🇺🇸 获取美股信息: {code}")
+            logger.info(f"🇺🇸 获取美股信息: {symbol}")
 
             # 获取美股名称
             stock_name = self.get_us_stock_name_by_symbol(symbol)
 
             # 获取市场数据（价格等）
-            stock_data = self.market_cache.get_us_stock_data(code)
+            stock_data = self.market_cache.get_us_stock_data(symbol)
 
             # 构建基本信息
             result = {
@@ -589,15 +569,13 @@ class AkshareService:
             return {}
 
         try:
-            processor = get_symbol_processor()
-            code = processor.get_akshare_format(symbol)
-            logger.info(f"🇭🇰 AKShare获取港股基本面数据: {code}")
+            logger.info(f"🇭🇰 AKShare获取港股基本面数据: {symbol}")
 
             fundamentals = {}
 
             # 1. 获取证券资料
             try:
-                security_profile = self._get_hk_security_profile(code)
+                security_profile = self._get_hk_security_profile(symbol)
                 if security_profile:
                     fundamentals["security_profile"] = security_profile
                     logger.info(f"✅ 获取港股证券资料成功: {symbol}")
@@ -606,7 +584,7 @@ class AkshareService:
 
             # 2. 获取公司资料
             try:
-                company_profile = self._get_hk_company_profile(code)
+                company_profile = self._get_hk_company_profile(symbol)
                 if company_profile:
                     fundamentals["company_profile"] = company_profile
                     logger.info(f"✅ 获取港股公司资料成功: {symbol}")
@@ -615,7 +593,7 @@ class AkshareService:
 
             # 3. 获取实时行情（用于市值等计算）
             try:
-                market_data = self._get_hk_market_data(code)
+                market_data = self._get_hk_market_data(symbol)
                 if market_data:
                     fundamentals["market_data"] = market_data
                     logger.info(f"✅ 获取港股市场数据成功: {symbol}")
@@ -644,15 +622,13 @@ class AkshareService:
             return {}
 
         try:
-            processor = get_symbol_processor()
-            code = processor.get_akshare_format(symbol)
-            logger.info(f"🇺🇸 AKShare获取美股基本面数据: {code}")
+            logger.info(f"🇺🇸 AKShare获取美股基本面数据: {symbol}")
 
             fundamentals = {}
 
             # 1. 获取实时行情（用于市值等计算）
             try:
-                market_data = self._get_us_market_data(code)
+                market_data = self._get_us_market_data(symbol)
                 if market_data:
                     fundamentals["market_data"] = market_data
                     logger.info(f"✅ 获取美股市场数据成功: {symbol}")
@@ -667,8 +643,6 @@ class AkshareService:
 
     def _get_us_market_data(self, code: str) -> Dict[str, Any]:
         """获取美股市场数据（使用缓存优化版本）"""
-        processor = get_symbol_processor()
-        code = processor.get_akshare_format(code)
         try:
             # 优先从缓存获取美股市场数据
             stock_data = self.market_cache.get_us_stock_data(code)
@@ -724,14 +698,12 @@ class AkshareService:
 
     def _get_hk_security_profile(self, code: str) -> Dict[str, Any]:
         """获取港股证券资料"""
-        processor = get_symbol_processor()
-        code = processor.get_akshare_format(code)
         result = [None]
         exception = [None]
 
         def fetch_data():
             try:
-                result[0] = ak.stock_hk_security_profile_em(symbol=code)
+                result[0] = ak.stock_hk_security_profile_em(symbol=symbol)
             except Exception as e:
                 exception[0] = e
 
@@ -740,7 +712,7 @@ class AkshareService:
         thread.join(timeout=30)
 
         if thread.is_alive():
-            raise TimeoutError(f"获取港股证券资料超时: {code}")
+            raise TimeoutError(f"获取港股证券资料超时: {symbol}")
         if exception[0]:
             raise exception[0]
 
@@ -760,14 +732,12 @@ class AkshareService:
 
     def _get_hk_company_profile(self, code: str) -> Dict[str, Any]:
         """获取港股公司资料"""
-        processor = get_symbol_processor()
-        code = processor.get_akshare_format(code)
         result = [None]
         exception = [None]
 
         def fetch_data():
             try:
-                result[0] = ak.stock_hk_company_profile_em(symbol=code)
+                result[0] = ak.stock_hk_company_profile_em(symbol=symbol)
             except Exception as e:
                 exception[0] = e
 
@@ -776,7 +746,7 @@ class AkshareService:
         thread.join(timeout=30)
 
         if thread.is_alive():
-            raise TimeoutError(f"获取港股公司资料超时: {code}")
+            raise TimeoutError(f"获取港股公司资料超时: {symbol}")
         if exception[0]:
             raise exception[0]
 
@@ -796,8 +766,6 @@ class AkshareService:
 
     def _get_hk_market_data(self, code: str) -> Dict[str, Any]:
         """获取港股市场数据（使用缓存优化版本）"""
-        processor = get_symbol_processor()
-        code = processor.get_akshare_format(code)
         try:
             # 优先从缓存获取港股市场数据
             stock_data = self.market_cache.get_hk_stock_data(code)
@@ -858,9 +826,7 @@ class AkshareService:
             Dict: 公司基本信息，如果获取失败返回None
         """
         try:
-            processor = get_symbol_processor()
-            code = processor.get_akshare_format(code)
-            logger.info(f"🏢 获取港股公司资料: {code}")
+            logger.info(f"🏢 获取港股公司资料: {symbol}")
 
             # 使用线程超时获取公司资料
             result = [None]
@@ -868,7 +834,7 @@ class AkshareService:
 
             def fetch_company_data():
                 try:
-                    result[0] = ak.stock_hk_company_profile_em(symbol=code)
+                    result[0] = ak.stock_hk_company_profile_em(symbol=symbol)
                 except Exception as e:
                     exception[0] = e
 
@@ -877,7 +843,7 @@ class AkshareService:
             thread.join(timeout=30)
 
             if thread.is_alive():
-                logger.warning(f"⚠️ 获取港股公司资料超时: {code}")
+                logger.warning(f"⚠️ 获取港股公司资料超时: {symbol}")
                 return None
 
             if exception[0]:
@@ -886,7 +852,7 @@ class AkshareService:
 
             data = result[0]
             if data is None or data.empty:
-                logger.warning(f"⚠️ 港股公司资料为空: {code}")
+                logger.warning(f"⚠️ 港股公司资料为空: {symbol}")
                 return None
 
             # 解析公司资料数据
@@ -927,7 +893,7 @@ class AkshareService:
                                 company_info[field_name] = 0
 
             logger.info(
-                f"✅ 港股公司资料获取成功: {company_info.get('company_name', code)}"
+                f"✅ 港股公司资料获取成功: {company_info.get('company_name', symbol)}"
             )
             return company_info
 
@@ -956,30 +922,21 @@ class AkshareService:
             logger.error("[东方财富新闻] ❌ AKShare未连接，无法获取东方财富新闻")
             return pd.DataFrame()
 
-        # 清洗股票代码
-        code = (
-            symbol.replace(".SH", "")
-            .replace(".SZ", "")
-            .replace(".XSHE", "")
-            .replace(".XSHG", "")
-        )
-
         try:
-            logger.info(f"[东方财富新闻] 📰 准备调用AKShare API获取个股新闻: {code}")
+            logger.info(f"[东方财富新闻] 📰 准备调用AKShare API获取个股新闻: {symbol}")
 
-            # 使用线程超时包装（兼容Windows）
             result = [None]
             exception = [None]
 
             def fetch_news():
                 try:
                     logger.debug(
-                        f"[东方财富新闻] 线程开始执行 stock_news_em API调用: {code}"
+                        f"[东方财富新闻] 线程开始执行 stock_news_em API调用: {symbol}"
                     )
                     import time
 
                     thread_start = time.time()
-                    result[0] = ak.stock_news_em(symbol=code)
+                    result[0] = ak.stock_news_em(symbol=symbol)
                     thread_end = time.time()
                     logger.debug(
                         f"[东方财富新闻] 线程执行完成，耗时: {thread_end - thread_start:.2f}秒"

@@ -44,24 +44,6 @@ class TushareService:
             # 初始化失败时直接抛出错误
             raise ConnectionError(f"Tushare API 连接失败: {e}") from e
 
-    def _normalize_symbol(self, symbol: str) -> str:
-        code = symbol.upper().replace(".SH", "").replace(".SZ", "")
-        if code.startswith(("60", "688", "900")):
-            return f"{code}.SH"
-        elif code.startswith(("00", "300", "200")):
-            return f"{code}.SZ"
-        else:
-            print(f"⚠️ 无法根据规则识别股票代码 {code} 的交易所，默认使用 .SH")
-            return f"{code}.SH"
-
-    def _normalize_hk_symbol(self, symbol: str) -> str:
-        """标准化港股代码为Tushare格式"""
-        code = symbol.upper().replace(".HK", "").replace(".hk", "")
-        # 港股代码补零到5位
-        if code.isdigit():
-            code = code.zfill(5)
-        return f"{code}.HK"
-
     def _standardize_data(self, data: pd.DataFrame) -> pd.DataFrame:
         if data.empty:
             return data
@@ -141,8 +123,8 @@ class TushareService:
         if not self.pro:
             raise ConnectionError("Tushare服务未初始化或连接失败。")
 
-        ts_code = self._normalize_symbol(symbol)
         try:
+            ts_code = symbol  # 直接使用已经标准化的代码
             df = self.pro.daily(
                 ts_code=ts_code,
                 start_date=start_date.replace("-", ""),
@@ -176,8 +158,8 @@ class TushareService:
         if not self.pro:
             raise ConnectionError("Tushare服务未初始化或连接失败。")
 
-        ts_code = self._normalize_hk_symbol(symbol)
         try:
+            ts_code = symbol  # 直接使用已经标准化的代码
             df = self.pro.hk_daily(
                 ts_code=ts_code,
                 start_date=start_date.replace("-", ""),
@@ -208,8 +190,8 @@ class TushareService:
         if not self.pro:
             raise ConnectionError("Tushare服务未初始化或连接失败。")
 
-        ts_code = self._normalize_hk_symbol(symbol)
         try:
+            ts_code = symbol  # 直接使用已经标准化的代码
             df = self.pro.rt_hk_k(ts_code=ts_code)
             if df is None or df.empty:
                 raise DataNotFoundError(f"未找到 {ts_code} 的港股实时日K线数据。")
@@ -242,8 +224,8 @@ class TushareService:
         if not self.pro:
             raise ConnectionError("Tushare服务未初始化或连接失败。")
 
-        ts_code = self._normalize_hk_symbol(symbol)
         try:
+            ts_code = symbol  # 直接使用已经标准化的代码
             params = {"ts_code": ts_code, "freq": freq}
             if start_date:
                 params["start_date"] = start_date
@@ -284,8 +266,8 @@ class TushareService:
         if not self.pro:
             raise ConnectionError("Tushare服务未初始化或连接失败。")
 
-        ts_code = self._normalize_hk_symbol(symbol)
         try:
+            ts_code = symbol  # 直接使用已经标准化的代码
             params = {"ts_code": ts_code}
             if period:
                 params["period"] = period
@@ -330,8 +312,8 @@ class TushareService:
         if not self.pro:
             raise ConnectionError("Tushare服务未初始化或连接失败。")
 
-        ts_code = self._normalize_hk_symbol(symbol)
         try:
+            ts_code = symbol  # 直接使用已经标准化的代码
             params = {"ts_code": ts_code}
             if period:
                 params["period"] = period
@@ -376,8 +358,8 @@ class TushareService:
         if not self.pro:
             raise ConnectionError("Tushare服务未初始化或连接失败。")
 
-        ts_code = self._normalize_hk_symbol(symbol)
         try:
+            ts_code = symbol  # 直接使用已经标准化的代码
             params = {"ts_code": ts_code}
             if period:
                 params["period"] = period
@@ -422,8 +404,8 @@ class TushareService:
         if not self.pro:
             raise ConnectionError("Tushare服务未初始化或连接失败。")
 
-        ts_code = self._normalize_hk_symbol(symbol)
         try:
+            ts_code = symbol  # 直接使用已经标准化的代码
             params = {"ts_code": ts_code}
             if period:
                 params["period"] = period
@@ -458,8 +440,8 @@ class TushareService:
         if not self.pro:
             raise ConnectionError("Tushare服务未初始化或连接失败。")
 
-        ts_code = self._normalize_hk_symbol(symbol)
         try:
+            ts_code = symbol  # 直接使用已经标准化的代码
             print(f"⚠️ 港股财务报表API不可用，使用复权行情数据降级处理: {ts_code}")
 
             # 使用复权行情数据作为基本面数据的替代
@@ -516,8 +498,8 @@ class TushareService:
         """
         # 获取港股基本信息和日线数据
         data = self.get_hk_daily(symbol, start_date, end_date)
-        ts_code = self._normalize_hk_symbol(symbol)
 
+        ts_code = symbol  # 直接使用已经标准化的代码
         # 获取最新数据
         latest_data = data.iloc[-1]
         current_price = f"HK${latest_data['close']:.2f}"
@@ -548,8 +530,8 @@ class TushareService:
         if not self.pro:
             raise ConnectionError("Tushare服务未初始化或连接失败。")
 
-        ts_code = self._normalize_symbol(symbol)
         try:
+            ts_code = symbol  # 直接使用已经标准化的代码
             df = self.pro.stock_basic(
                 ts_code=ts_code, fields="ts_code,symbol,name,area,industry,market"
             )
@@ -569,8 +551,8 @@ class TushareService:
         if not period:
             period = "20241231"  # 默认最新年报
 
-        ts_code = self._normalize_symbol(symbol)
         try:
+            ts_code = symbol  # 直接使用已经标准化的代码
             balance_sheet = self.pro.balancesheet(
                 ts_code=ts_code,
                 period=period,
@@ -988,8 +970,8 @@ class TushareService:
         if not self.pro:
             raise ConnectionError("Tushare服务未初始化或连接失败。")
 
-        ts_code = self._normalize_hk_symbol(symbol)
         try:
+            ts_code = symbol  # 直接使用已经标准化的代码
             params = {}
             if ts_code:
                 params["ts_code"] = ts_code
@@ -1025,8 +1007,8 @@ class TushareService:
         if not self.pro:
             raise ConnectionError("Tushare服务未初始化或连接失败。")
 
-        ts_code = self._normalize_hk_symbol(symbol)
         try:
+            ts_code = symbol  # 直接使用已经标准化的代码
             # 1. 获取港股基本信息
             basic_info = {}
             try:

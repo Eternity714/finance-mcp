@@ -183,20 +183,23 @@ class FundamentalsAnalysisService:
     def _get_tushare_fundamentals(self, symbol: str) -> Optional[FundamentalData]:
         """从Tushare获取基本面数据（使用完整财务数据API）"""
         try:
+            # 获取服务和代码处理器
             service = self.services["tushare"]
+            processor = get_symbol_processor()
+            tushare_symbol = processor.get_tushare_format(symbol)
 
             # 确定股票市场类型
-            market = self._determine_stock_market(symbol)
+            market = processor.get_market_simple_name(symbol)
 
             # 根据市场类型调用不同的Tushare接口
             if market == "china":
                 # A股市场，使用标准接口
-                print(f"📈 使用Tushare获取A股基本面数据: {symbol}")
-                return self._get_tushare_china_fundamentals(service, symbol)
+                print(f"📈 使用Tushare获取A股基本面数据: {symbol} -> {tushare_symbol}")
+                return self._get_tushare_china_fundamentals(service, tushare_symbol)
             elif market == "hk":
                 # 港股市场，使用港股接口
-                print(f"🇭🇰 使用Tushare获取港股基本面数据: {symbol}")
-                return self._get_tushare_hk_fundamentals(service, symbol)
+                print(f"🇭🇰 使用Tushare获取港股基本面数据: {symbol} -> {tushare_symbol}")
+                return self._get_tushare_hk_fundamentals(service, tushare_symbol)
             else:
                 # 美股市场，Tushare不支持
                 print(f"⚠️ Tushare不支持美股基本面数据，跳过: {symbol}")
@@ -211,12 +214,10 @@ class FundamentalsAnalysisService:
     ) -> Optional[FundamentalData]:
         """获取A股基本面数据"""
         try:
-
-            # 转换股票代码格式
-            ts_code = self._convert_to_tushare_code(symbol)
+            ts_code = symbol  # 直接使用已经标准化的代码
 
             # 获取基本信息和市场数据
-            info = service.get_stock_info(symbol)
+            info = service.get_stock_info(ts_code)
             market_data = service.get_market_data(ts_code)
 
             # 合并基本信息和市场数据
@@ -231,11 +232,11 @@ class FundamentalsAnalysisService:
                 return None
 
             # 获取完整财务数据
-            financial_data = self._get_tushare_financial_data(symbol)
+            financial_data = self._get_tushare_financial_data(ts_code)
             if not financial_data:
                 # 降级到简单方法
                 print(f"降级使用简单财务数据获取方式: {symbol}")
-                financial = service.get_china_fundamentals(symbol)
+                financial = service.get_china_fundamentals(ts_code)
                 if not financial:
                     return None
 
@@ -246,7 +247,7 @@ class FundamentalsAnalysisService:
 
             # 使用新的财务数据计算指标
             return self._build_fundamental_data_from_tushare(
-                symbol, combined_info, financial_data
+                ts_code, combined_info, financial_data
             )
 
         except Exception as e:
@@ -259,7 +260,8 @@ class FundamentalsAnalysisService:
         """获取港股基本面数据（使用复权行情数据降级处理）"""
         try:
             # 获取港股基本面数据（降级处理）
-            hk_fundamentals = service.get_hk_fundamentals(symbol)
+            ts_code = symbol  # 直接使用已经标准化的代码
+            hk_fundamentals = service.get_hk_fundamentals(ts_code)
 
             if not hk_fundamentals:
                 print(f"未获取到港股 {symbol} 的基本面数据")
@@ -396,16 +398,20 @@ class FundamentalsAnalysisService:
     def _get_akshare_fundamentals(self, symbol: str) -> Optional[FundamentalData]:
         """从AKShare获取基本面数据，根据市场类型调用不同接口"""
         try:
+            # 获取服务和代码处理器
+            processor = get_symbol_processor()
+            akshare_symbol = processor.get_akshare_format(symbol)
+
             # 判断股票市场类型
-            market = self._determine_stock_market(symbol)
+            market = processor.get_market_simple_name(symbol)
 
             if market == "china":
-                return self._get_akshare_china_fundamentals(symbol)
+                return self._get_akshare_china_fundamentals(akshare_symbol)
             elif market == "hk":
-                return self._get_akshare_hk_fundamentals(symbol)
+                return self._get_akshare_hk_fundamentals(akshare_symbol)
             else:
                 # 美股市场，使用AKShare美股基本面接口
-                return self._get_akshare_us_fundamentals(symbol)
+                return self._get_akshare_us_fundamentals(akshare_symbol)
 
         except Exception as e:
             print(f"AKShare基本面数据获取失败: {e}")
@@ -418,11 +424,12 @@ class FundamentalsAnalysisService:
 
             service = self.services["akshare"]
 
+            akshare_symbol = symbol  # 直接使用已经标准化的代码
             # 获取基本信息
-            info = service.get_stock_info(symbol)
+            info = service.get_stock_info(akshare_symbol)
 
             # 获取财务数据
-            financial = service.get_financial_data(symbol)
+            financial = service.get_financial_data(akshare_symbol)
 
             if not info:
                 return None
@@ -511,8 +518,7 @@ class FundamentalsAnalysisService:
                 print(f"  资产负债率: {debt_to_equity}, 流动比率: {current_ratio}")
 
             # 获取市场数据（使用Redis缓存优化）
-            code = symbol.replace(".SH", "").replace(".SZ", "")
-            market_data = self._get_market_data_cached(code)
+            market_data = self._get_market_data_cached(akshare_symbol)
 
             if market_data is not None:
                 pe_ratio = market_data.get("市盈率-动态", 0) or 0
@@ -557,8 +563,9 @@ class FundamentalsAnalysisService:
         try:
             service = self.services["akshare"]
 
+            akshare_symbol = symbol  # 直接使用已经标准化的代码
             # 获取港股基本面数据
-            hk_fundamentals = service.get_hk_fundamentals(symbol)
+            hk_fundamentals = service.get_hk_fundamentals(akshare_symbol)
 
             if not hk_fundamentals:
                 print(f"未获取到港股 {symbol} 的基本面数据")
@@ -581,8 +588,7 @@ class FundamentalsAnalysisService:
             volume = turnover = 0
 
             # 获取市场数据（使用Redis缓存优化）
-            code = symbol.replace(".HK", "").replace(".hk", "").zfill(5)
-            cached_market_data = self._get_market_data_cached(code)
+            cached_market_data = self._get_market_data_cached(akshare_symbol)
 
             if cached_market_data is not None:
                 # 从缓存获取港股市场数据 - 使用正确的字段名映射
@@ -615,7 +621,9 @@ class FundamentalsAnalysisService:
                     refresh_result = self.market_cache.force_refresh("hk")
                     if refresh_result.get("hk") is not None:
                         # 刷新成功，重新从缓存获取
-                        cached_market_data = self._get_market_data_cached(code)
+                        cached_market_data = self._get_market_data_cached(
+                            akshare_symbol
+                        )
                         if cached_market_data:
                             latest_price = cached_market_data.get("最新价", 0) or 0
                             volume = cached_market_data.get("成交量", 0) or 0
@@ -666,8 +674,9 @@ class FundamentalsAnalysisService:
         try:
             service = self.services["akshare"]
 
+            akshare_symbol = symbol  # 直接使用已经标准化的代码
             # 获取美股基本面数据
-            us_fundamentals = service.get_us_fundamentals(symbol)
+            us_fundamentals = service.get_us_fundamentals(akshare_symbol)
 
             if not us_fundamentals:
                 print(f"未获取到美股 {symbol} 的基本面数据")
@@ -677,23 +686,11 @@ class FundamentalsAnalysisService:
             market_data = us_fundamentals.get("market_data", {})
 
             # 从AKShare获取美股基本信息
-            us_info = service.get_us_info(symbol)
+            us_info = service.get_us_info(akshare_symbol)
             company_name = us_info.get("name", f"美股{symbol}")
 
-            # 初始化默认值
-            pe_ratio = pb_ratio = 0
-            latest_price = market_data.get("latest_price", 0)
-            market_cap = market_data.get("market_cap", 0)
-            volume = turnover = 0
-
             # 获取市场数据（使用Redis缓存优化）
-            code = (
-                symbol.upper()
-                .replace(".US", "")
-                .replace(".NASDAQ", "")
-                .replace(".NYSE", "")
-            )
-            cached_market_data = self._get_market_data_cached(code)
+            cached_market_data = self._get_market_data_cached(akshare_symbol)
 
             if cached_market_data is not None:
                 # 从缓存获取美股市场数据
@@ -715,7 +712,9 @@ class FundamentalsAnalysisService:
                     refresh_result = self.market_cache.force_refresh("us")
                     if refresh_result.get("us") is not None:
                         # 刷新成功，重新从缓存获取
-                        cached_market_data = self._get_market_data_cached(code)
+                        cached_market_data = self._get_market_data_cached(
+                            akshare_symbol
+                        )
                         if cached_market_data:
                             latest_price = cached_market_data.get("最新价", 0) or 0
                             volume = cached_market_data.get("成交量", 0) or 0
@@ -738,9 +737,9 @@ class FundamentalsAnalysisService:
             return FundamentalData(
                 symbol=symbol,
                 company_name=company_name,
-                market_cap=market_cap or 0,
-                pe_ratio=pe_ratio or 0,
-                pb_ratio=pb_ratio or 0,  # AKShare美股数据中通常没有PB数据
+                market_cap=cached_market_data.get("总市值", 0) or 0,
+                pe_ratio=cached_market_data.get("市盈率", 0) or 0,
+                pb_ratio=0,  # AKShare美股数据中通常没有PB数据
                 roe=0,  # 美股ROE数据需要从财务报表接口获取
                 revenue=0,  # 营业收入数据需要从财务报表接口获取
                 net_income=0,  # 净利润数据需要从财务报表接口获取
@@ -773,33 +772,24 @@ class FundamentalsAnalysisService:
             dict: 股票市场数据或None
         """
         try:
+            processor = get_symbol_processor()
             # 使用统一的股票市场分类器判断市场类型
-            market = self._determine_stock_market(symbol)
-
-            # 清理股票代码（去除各种后缀）
-            clean_symbol = (
-                symbol.replace(".SH", "")
-                .replace(".SZ", "")
-                .replace(".HK", "")
-                .replace(".hk", "")
-                .replace(".SS", "")
-                .replace(".XSHE", "")
-                .replace(".XSHG", "")
-            )
+            market = processor.get_market_simple_name(symbol)
+            cache_key_symbol = processor.get_cache_key(symbol)
 
             # 根据市场类型获取相应的缓存数据
             if market == "china":
                 # A股市场
-                market_data = self.market_cache.get_china_stock_data(clean_symbol)
-                print(f"📊 从A股缓存获取 {clean_symbol} 的市场数据")
+                market_data = self.market_cache.get_china_stock_data(cache_key_symbol)
+                print(f"📊 从A股缓存获取 {cache_key_symbol} 的市场数据")
             elif market == "hk":
                 # 港股市场
-                market_data = self.market_cache.get_hk_stock_data(clean_symbol)
-                print(f"📊 从港股缓存获取 {clean_symbol} 的市场数据")
+                market_data = self.market_cache.get_hk_stock_data(cache_key_symbol)
+                print(f"📊 从港股缓存获取 {cache_key_symbol} 的市场数据")
             elif market == "us":
                 # 美股市场
-                market_data = self.market_cache.get_us_stock_data(clean_symbol)
-                print(f"📊 从美股缓存获取 {clean_symbol} 的市场数据")
+                market_data = self.market_cache.get_us_stock_data(cache_key_symbol)
+                print(f"📊 从美股缓存获取 {cache_key_symbol} 的市场数据")
             else:
                 # 其他市场，暂不支持缓存
                 print(f"⚠️ 市场类型 {market} 暂不支持缓存，股票代码: {symbol}")
@@ -1211,9 +1201,7 @@ class FundamentalsAnalysisService:
         """获取Tushare完整财务数据"""
         try:
             service = self.services["tushare"]
-
-            # 转换股票代码格式（如果需要）
-            ts_code = self._convert_to_tushare_code(symbol)
+            ts_code = symbol  # 直接使用已经标准化的代码
 
             # 获取最近一年的财务数据
             end_date = datetime.now().strftime("%Y%m%d")
@@ -1247,11 +1235,6 @@ class FundamentalsAnalysisService:
         except Exception as e:
             print(f"获取Tushare完整财务数据失败: {e}")
             return None
-
-    def _convert_to_tushare_code(self, symbol: str) -> str:
-        """转换为Tushare代码格式"""
-        processor = get_symbol_processor()
-        return processor.get_tushare_format(symbol)
 
     def _build_fundamental_data_from_tushare(
         self, symbol: str, info: Dict, financial_data: TushareFinancialData
