@@ -737,6 +737,7 @@ class TushareService:
             # 优先尝试当日
             today = datetime.now().strftime("%Y%m%d")
             print(f"🔍 获取 {ts_code} 的市场数据，日期: {today}")
+            is_today = True  # 默认认为是当天数据
             daily_basic = self.pro.daily_basic(
                 ts_code=ts_code,
                 trade_date=today,
@@ -745,6 +746,7 @@ class TushareService:
 
             # 若当日无数据（非交易日或未更新），回退近10个自然日内最近一条
             if daily_basic is None or daily_basic.empty:
+                is_today = False  # 发生回退，标记为非当天数据
                 print(f"📅 当日({today})无数据，回退获取最近10天数据")
                 start = (datetime.now() - timedelta(days=10)).strftime("%Y%m%d")
                 recent = self.pro.daily_basic(
@@ -767,6 +769,7 @@ class TushareService:
             if daily_basic is not None and not daily_basic.empty:
                 daily_data = daily_basic.iloc[0].to_dict()
                 result.update(daily_data)
+                result["is_today"] = is_today  # 在结果中加入是否为当天数据的标识
                 print(
                     f"📊 市场数据: PE={daily_data.get('pe_ttm', 'N/A')}, PB={daily_data.get('pb_mrq', 'N/A')}"
                 )

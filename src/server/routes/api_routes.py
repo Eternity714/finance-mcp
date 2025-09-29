@@ -11,6 +11,9 @@ from typing import Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+# 导入新的行情服务和数据传输对象
+from ..services.quote_service import QuoteService, StockMarketDataDTO
+
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
@@ -96,3 +99,27 @@ async def get_latest_news(symbol: str, days_back: int = 30):
     except Exception as e:
         logger.error(f"获取最新新闻失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/stock/quote", response_model=StockMarketDataDTO)
+async def get_stock_quote(symbol: str):
+    """
+    获取股票的实时或近实时行情数据。
+
+    返回一个标准化的 StockMarketDataDTO 对象，其中包含价格、涨跌幅、市盈率和市值等信息。
+    """
+    try:
+        if not symbol:
+            raise HTTPException(status_code=400, detail="缺少股票代码")
+
+        # 使用新创建的行情服务
+        quote_service = QuoteService()
+
+        # 调用服务获取标准化的行情数据DTO
+        quote_dto = quote_service.get_stock_quote(symbol)
+
+        return quote_dto
+
+    except Exception as e:
+        logger.error(f"获取股票行情数据失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取股票行情数据时发生内部错误: {e}")

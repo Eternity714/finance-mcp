@@ -37,6 +37,7 @@ class StockSymbolProcessor:
         result = {
             **classification,
             "formats": formats,
+            "market_simple_name": self.get_market_simple_name(symbol, classification),
             "data_sources": data_sources,
             "original": symbol,
         }
@@ -260,9 +261,10 @@ class StockSymbolProcessor:
                 "priority": "yfinance",
             }
 
-    def get_market_simple_name(self, symbol: str) -> str:
+    def get_market_simple_name(self, symbol: str, classification: Dict = None) -> str:
         """获取简化的市场名称"""
-        classification = self.classifier.classify_stock(symbol)
+        if classification is None:
+            classification = self.classifier.classify_stock(symbol)
 
         if classification["is_china"]:
             return "china"
