@@ -6,7 +6,7 @@ HTTP POST API 路由
 import json
 import logging
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
@@ -122,4 +122,38 @@ async def get_stock_quote(symbol: str):
 
     except Exception as e:
         logger.error(f"获取股票行情数据失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"获取股票行情数据时发生内部错误: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"获取股票行情数据时发生内部错误: {e}"
+        )
+
+
+class QuoteListRequest(BaseModel):
+    """批量获取行情的请求体模型"""
+
+    symbols: List[str]
+
+
+@router.get("/stock/quotes", response_model=List[StockMarketDataDTO])
+async def get_stock_quotes(request: QuoteListRequest):
+    """
+    批量获取多个股票的实时或近实时行情数据。
+
+    传入一个包含多个股票代码的列表，返回一个包含相应行情数据的列表。
+    """
+    try:
+        if not request.symbols:
+            raise HTTPException(status_code=400, detail="股票代码列表不能为空")
+
+        # 使用行情服务
+        quote_service = QuoteService()
+
+        # 调用新的批量获取方法
+        quote_dtos = quote_service.get_stock_quotes_batch(request.symbols)
+
+        return quote_dtos
+
+    except Exception as e:
+        logger.error(f"批量获取股票行情数据失败: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail=f"批量获取股票行情数据时发生内部错误: {e}"
+        )

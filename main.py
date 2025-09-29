@@ -40,13 +40,13 @@ async def main():
     parser.add_argument(
         "--http-port",
         type=int,
-        default=8000,
+        default=9998,
         help="FastAPI Web 服务器的端口号 (默认: 8000)",
     )
     parser.add_argument(
         "--mcp-port",
         type=int,
-        default=8001,
+        default=9999,
         help="MCP 服务器在 sse 或 streamable-http 模式下的端口号 (默认: 8001)",
     )
     parser.add_argument(

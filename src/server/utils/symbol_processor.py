@@ -123,8 +123,11 @@ class StockSymbolProcessor:
             # 港股：添加.HK后缀
             clean_code = self._extract_base_code(symbol)
             if clean_code.isdigit():
-                return f"{clean_code.zfill(4)}.HK"  # 港股YFinance是4位
-            return f"{clean_code}.HK"
+                # yfinance 需要的是去除了前导零的数字代码 + .HK
+                # 例如 00005.HK -> 5.HK, 00700.HK -> 700.HK
+                numeric_code = str(int(clean_code))
+                return f"{numeric_code}.HK"
+            return f"{clean_code.upper()}.HK"
 
         else:
             # 美股：纯代码，去除后缀

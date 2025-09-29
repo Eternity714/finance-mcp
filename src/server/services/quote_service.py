@@ -9,7 +9,7 @@
 """
 
 from decimal import Decimal, InvalidOperation
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 import pandas as pd
 
 from pydantic import BaseModel
@@ -126,6 +126,23 @@ class QuoteService:
             f"⚠️ [QuoteService] 所有数据源均无法获取 {display_symbol} 的行情，返回空数据。"
         )
         return StockMarketDataDTO(ticker=display_symbol, source="fallback")
+
+    def get_stock_quotes_batch(self, symbols: List[str]) -> List[StockMarketDataDTO]:
+        """
+        批量获取多个股票的行情数据。
+
+        Args:
+            symbols: 包含多个股票代码的列表 (e.g., ["600519", "00700", "AAPL"])
+
+        Returns:
+            List[StockMarketDataDTO]: 包含多个行情数据的DTO对象列表
+        """
+        print(f"📦 [QuoteService] 开始批量获取 {len(symbols)} 个股票的行情数据")
+        quotes = []
+        for symbol in symbols:
+            # 依次调用单次获取方法
+            quotes.append(self.get_stock_quote(symbol))
+        return quotes
 
     def _safe_decimal(
         self, value: any, default: Optional[Decimal] = None
