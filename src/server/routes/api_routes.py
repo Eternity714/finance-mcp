@@ -133,7 +133,7 @@ class QuoteListRequest(BaseModel):
     symbols: List[str]
 
 
-@router.get("/stock/quotes", response_model=List[StockMarketDataDTO])
+@router.post("/stock/quotes", response_model=List[StockMarketDataDTO])
 async def get_stock_quotes(request: QuoteListRequest):
     """
     批量获取多个股票的实时或近实时行情数据。

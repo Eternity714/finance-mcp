@@ -90,7 +90,7 @@ class QuoteService:
         # 根据市场决定数据源的优先级
         # 对于实时行情，AKShare的缓存通常是最高效的
         if symbol_info["is_china"]:
-            data_sources = ["tushare", "akshare"]
+            data_sources = ["akshare", "tushare"]
         elif symbol_info["is_hk"]:
             data_sources = ["yfinance", "akshare", "tushare"]
         else:  # 美股

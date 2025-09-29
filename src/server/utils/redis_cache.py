@@ -3,10 +3,12 @@ Redis缓存管理器
 专门为AKShare全市场数据和基本面数据提供高性能缓存
 """
 
+import functools
 import redis
 import pickle
 import time
 import pandas as pd
+import requests
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
 import logging
@@ -482,6 +484,30 @@ class AKShareMarketCache:
             logger.error(f"❌ 从Redis获取数据失败: {e}")
             return None
 
+    def _temporary_akshare_timeout(self, timeout: int):
+        """
+        一个上下文管理器，用于临时修改akshare（底层requests）的超时时间。
+        """
+        original_get = requests.get
+
+        @functools.wraps(original_get)
+        def new_get(*args, **kwargs):
+            # 如果调用方没有指定超时，则使用我们设置的超时
+            if "timeout" not in kwargs:
+                kwargs["timeout"] = timeout
+            return original_get(*args, **kwargs)
+
+        class TimeoutContext:
+            def __enter__(self):
+                logger.info(f"🔧 临时将AKShare网络请求超时设置为 {timeout} 秒...")
+                requests.get = new_get
+
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                logger.info("🔧 恢复AKShare原始网络请求设置...")
+                requests.get = original_get
+
+        return TimeoutContext()
+
     def _fetch_fresh_data_by_type(self, market_type: str) -> Optional[pd.DataFrame]:
         """根据市场类型从AKShare获取新数据"""
         try:
@@ -489,22 +515,19 @@ class AKShareMarketCache:
 
             market_name = {"china": "A股", "hk": "港股", "us": "美股"}[market_type]
             logger.info(f"🔄 从AKShare获取{market_name}全市场数据...")
-            start_time = time.time()
+            with self._temporary_akshare_timeout(300):
+                start_time = time.time()
 
-            # 根据市场类型调用不同的AKShare接口
-            if market_type == "china":
-                market_data = ak.stock_zh_a_spot_em()
-            elif market_type == "hk":
-                market_data = ak.stock_hk_spot_em()
-            elif market_type == "us":
-                # 美股数据 - 使用东方财富美股实时行情接口
-                market_data = ak.stock_us_spot_em()
-            else:
-                logger.error(f"❌ 不支持的市场类型: {market_type}")
-                return None
-
-            end_time = time.time()
-            duration = end_time - start_time
+                # 根据市场类型调用不同的AKShare接口
+                if market_type == "china":
+                    market_data = ak.stock_zh_a_spot_em()
+                elif market_type == "hk":
+                    market_data = ak.stock_hk_spot_em()
+                elif market_type == "us":
+                    market_data = ak.stock_us_spot_em()
+                else:
+                    logger.error(f"❌ 不支持的市场类型: {market_type}")
+                    return None
 
             if market_data is not None and not market_data.empty:
                 # 更新缓存时间
@@ -517,6 +540,8 @@ class AKShareMarketCache:
                         self.cache_keys[market_type], market_data, self.cache_duration
                     )
 
+                end_time = time.time()
+                duration = end_time - start_time
                 logger.info(
                     f"✅ AKShare {market_name}数据获取成功: {len(market_data)}只股票, "
                     f"耗时: {duration:.2f}秒"
@@ -524,7 +549,7 @@ class AKShareMarketCache:
                 return market_data
             else:
                 logger.error(f"❌ AKShare返回空{market_name}数据")
-                return self._memory_backup[market_type]  # 返回内存备份
+                return self._memory_backup[market_type]  # 返回内存备份, 如果有的话
 
         except Exception as e:
             logger.error(f"❌ AKShare {market_name}数据获取失败: {e}")
