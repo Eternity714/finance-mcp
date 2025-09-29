@@ -63,7 +63,7 @@ class MarketDataService:
 
         # 1. Tushare服务
         try:
-            from .tusahre_service import TushareService
+            from .tushare_service import TushareService
 
             self.services["tushare"] = TushareService()
             print("✅ Tushare数据源已启用")

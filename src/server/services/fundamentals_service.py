@@ -108,7 +108,7 @@ class FundamentalsAnalysisService:
 
         # 1. Tushare基本面数据
         try:
-            from .tusahre_service import TushareService
+            from .tushare_service import TushareService
 
             self.services["tushare"] = TushareService()
             print("✅ Tushare基本面数据源已启用")
