@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 # 假设自定义异常在 app/utils/exception.py 中
 # 如果不在，请确保从正确的位置导入
 try:
-    from ..utils.exception import DataNotFoundError
+    from ..utils import DataNotFoundError
 except (ImportError, ModuleNotFoundError):
     # Fallback for local testing or different structure
     class DataNotFoundError(Exception):
