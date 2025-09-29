@@ -85,7 +85,7 @@ class QuoteService:
         """
         processor = get_symbol_processor()
         symbol_info = processor.process_symbol(symbol)
-        display_symbol = symbol_info["formats"]["display"]
+        ticker_symbol = symbol_info["formats"]["cache_key"]
 
         # 根据市场决定数据源的优先级
         # 对于实时行情，AKShare的缓存通常是最高效的
@@ -96,7 +96,7 @@ class QuoteService:
         else:  # 美股
             data_sources = ["yfinance", "akshare"]
 
-        print(f"🔍 [QuoteService] 开始获取 {display_symbol} 的行情数据")
+        print(f"🔍 [QuoteService] 开始获取 {ticker_symbol} 的行情数据")
         print(f"📊 [QuoteService] 数据源策略: {' → '.join(data_sources)}")
 
         last_error = None
@@ -113,7 +113,7 @@ class QuoteService:
 
                 if quote_data:
                     print(
-                        f"✅ [QuoteService] 成功从 {source} 获取到 {display_symbol} 的数据"
+                        f"✅ [QuoteService] 成功从 {source} 获取到 {ticker_symbol} 的数据"
                     )
                     return quote_data
 
@@ -123,9 +123,9 @@ class QuoteService:
                 continue
 
         print(
-            f"⚠️ [QuoteService] 所有数据源均无法获取 {display_symbol} 的行情，返回空数据。"
+            f"⚠️ [QuoteService] 所有数据源均无法获取 {ticker_symbol} 的行情，返回空数据。"
         )
-        return StockMarketDataDTO(ticker=display_symbol, source="fallback")
+        return StockMarketDataDTO(ticker=ticker_symbol, source="fallback")
 
     def get_stock_quotes_batch(self, symbols: List[str]) -> List[StockMarketDataDTO]:
         """
@@ -178,7 +178,7 @@ class QuoteService:
 
         # 将AKShare返回的字典映射到DTO
         return StockMarketDataDTO(
-            ticker=symbol_info["formats"]["display"],
+            ticker=symbol_info["formats"]["cache_key"],
             currentPrice=self._safe_decimal(market_data.get("最新价")),
             dailyChangePercent=self._safe_decimal(market_data.get("涨跌幅")),
             peRatio=self._safe_decimal(
@@ -202,7 +202,7 @@ class QuoteService:
 
         # YFinance数据映射
         return StockMarketDataDTO(
-            ticker=symbol_info["formats"]["display"],
+            ticker=symbol_info["formats"]["cache_key"],
             currentPrice=self._safe_decimal(
                 info.get("currentPrice") or info.get("regularMarketPrice")
             ),
@@ -243,7 +243,7 @@ class QuoteService:
         market_cap_yuan = (market_data.get("total_mv", 0) or 0) * 10000
 
         return StockMarketDataDTO(
-            ticker=symbol_info["formats"]["display"],
+            ticker=symbol_info["formats"]["cache_key"],
             # Tushare basic daily不直接提供当前价，这里可以留空或使用昨收
             currentPrice=None,
             dailyChangePercent=None,
