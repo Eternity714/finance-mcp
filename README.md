@@ -21,6 +21,7 @@
 - **yFinance**: 全球股票数据支持
 - **Finnhub**: 实时新闻和基本面数据
 - **NewsAPI**: 新闻聚合服务
+- **Tavily**: AI驱动的深度研究和搜索引擎
 
 ### 🎯 技术特点
 - **多级缓存**: Redis 缓存 + 智能降级机制
@@ -28,6 +29,13 @@
 - **容器化部署**: Docker 支持，生产就绪
 - **实时通信**: SSE + WebSocket 双向通信
 - **可视化面板**: Web 管理界面
+- **AI 驱动研究**: 基于 Tavily 的深度分析和洞察
+
+### 🔬 深度研究功能
+- **智能查询构建**: 基于用户输入和内部数据自动优化搜索查询
+- **多维度分析**: 支持公司分析、竞品对比、行业研究等多种研究类型
+- **AI 总结**: 提供精准的核心摘要和关键洞察
+- **多源信息**: 聚合来自权威网站的最新信息和分析
 
 ## 🛠️ 技术栈
 
@@ -36,7 +44,7 @@
 - **缓存系统**: Redis
 - **容器化**: Docker + Gunicorn
 - **前端**: 原生 JavaScript + SSE
-- **数据源**: AKShare, Tushare, yFinance, Finnhub
+- **数据源**: AKShare, Tushare, yFinance, Finnhub, Tavily
 
 ## 📋 环境要求
 
@@ -71,6 +79,7 @@ FINNHUB_API_KEY="your_finnhub_api_key"
 # 可选配置
 ALPHA_VANTAGE_API_KEY="your_alpha_vantage_key"
 NEWSAPI_KEY="your_newsapi_key"
+TAVILY_API_KEY="your_tavily_api_key"  # 深度研究功能
 ```
 
 ### 3. 安装依赖
@@ -91,8 +100,8 @@ python main.py [--mcp-mode {stdio|sse|streamable-http}] [--http-port <port>] [--
 
 默认值：
 - `--mcp-mode`：`streamable-http`
-- `--http-port`：`8000`
-- `--mcp-port`：`8001`
+- `--http-port`：`9998`
+- `--mcp-port`：`9999`
 - `--log-level`：`INFO`
 
 示例：
@@ -101,11 +110,11 @@ python main.py [--mcp-mode {stdio|sse|streamable-http}] [--http-port <port>] [--
 # 仅使用 stdio 模式运行 MCP（适用于本地 MCP 客户端）
 python main.py --mcp-mode stdio
 
-# 在 SSE 模式下启动 MCP（MCP 在 8001 端口），同时启动 FastAPI 在 8000
-python main.py --mcp-mode sse --mcp-port 8001 --http-port 8000
+# 在 SSE 模式下启动 MCP（MCP 在 9999 端口），同时启动 FastAPI 在 9998
+python main.py --mcp-mode sse --mcp-port 9999 --http-port 9998
 
 # 使用 StreamableHTTP 模式（默认）并设置日志级别为 DEBUG
-python main.py --mcp-mode streamable-http --mcp-port 8001 --http-port 8000 --log-level DEBUG
+python main.py --mcp-mode streamable-http --mcp-port 9999 --http-port 9998 --log-level DEBUG
 ```
 
 注意：`main.py` 会同时启动 FastAPI 和 MCP（根据所选模式），如果只想单独启动 FastAPI，可使用 `start_server.py` 或通过 uvicorn 直接运行（参见下方）。
@@ -122,9 +131,43 @@ uvicorn src.server.app:app --host 127.0.0.1 --port 8000 --reload
 
 ### 5. 访问服务
 
-- **管理面板**: http://127.0.0.1:8000
-- **API 文档**: http://127.0.0.1:8000/docs
-- **健康检查**: http://127.0.0.1:8000/health
+- **管理面板**: http://127.0.0.1:9998
+- **API 文档**: http://127.0.0.1:9998/docs
+- **健康检查**: http://127.0.0.1:9998/health
+
+### 6. 快速测试MCP功能
+
+启动服务后，您可以使用以下方式测试MCP工具：
+
+```bash
+# 测试工具列表 (StreamableHTTP模式，默认端口9999)
+curl -X POST "http://localhost:9999/tools/list" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+
+# 测试股票价格查询工具
+curl -X POST "http://localhost:9999/tools/call" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "get_stock_price_data",
+    "arguments": {
+      "symbol": "000001",
+      "start_date": "2023-01-01",
+      "end_date": "2023-12-31"
+    }
+  }'
+
+# 测试深度研究工具
+curl -X POST "http://localhost:9999/tools/call" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "perform_deep_research",
+    "arguments": {
+      "topic": "人工智能发展趋势",
+      "research_type": "industry_analysis"
+    }
+  }'
+```
 
 ## 🐳 Docker 部署
 
@@ -170,6 +213,8 @@ services:
 
 ### MCP 工具
 
+本项目提供4个核心MCP工具，支持全面的股票数据分析：
+
 #### 1. 获取股票价格数据
 
 ```python
@@ -204,7 +249,33 @@ get_latest_news(symbol: str, days_back: int = 30) -> str
 - `symbol`: 股票代码
 - `days_back`: 获取最近几天的新闻 (默认: 30天)
 
-**返回:** 新闻列表和情绪分析报告
+#### 4. 深度研究分析
+
+```python
+perform_deep_research(topic: str, research_type: str = "general", symbols: list[str] = None) -> str
+```
+
+**参数说明:**
+- `topic`: 研究主题 (如: "半导体行业最新技术突破", "AI芯片市场前景")
+- `research_type`: 研究类型 (可选值: "general", "company_profile", "competitor_analysis", "industry_analysis")
+- `symbols`: 相关股票代码列表 (可选，用于公司或竞品分析)
+
+**返回:** Markdown 格式的深度研究报告，包含AI总结和多源信息摘录
+
+**使用示例:**
+```python
+# 通用研究
+perform_deep_research("电动车行业发展前景")
+
+# 公司深度分析
+perform_deep_research("特斯拉的市场竞争力", "company_profile", ["TSLA"])
+
+# 竞品对比分析
+perform_deep_research("AI芯片竞争格局", "competitor_analysis", ["NVDA", "AMD", "INTC"])
+
+# 行业分析
+perform_deep_research("半导体行业技术趋势", "industry_analysis")
+```
 
 ### REST API 端点
 
@@ -254,7 +325,7 @@ import asyncio
 from mcp_client import MCPClient
 
 async def main():
-    client = MCPClient("http://localhost:8000/mcp")
+    client = MCPClient("http://localhost:9999/mcp")
     
     # 获取股票数据
     result = await client.call_tool("get_stock_price_data", {
@@ -263,7 +334,14 @@ async def main():
         "end_date": "2023-12-31"
     })
     
+    # 执行深度研究
+    research_result = await client.call_tool("perform_deep_research", {
+        "topic": "人工智能芯片发展趋势",
+        "research_type": "industry_analysis"
+    })
+    
     print(result)
+    print(research_result)
 
 asyncio.run(main())
 ```
@@ -291,24 +369,44 @@ async function getStockData() {
     const data = await response.json();
     console.log(data);
 }
+
+// 执行深度研究
+async function performResearch() {
+    const researchData = {
+        topic: "新能源汽车行业发展趋势",
+        research_type: "industry_analysis"
+    };
+    
+    const response = await fetch('/api/research', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(researchData)
+    });
+    
+    const result = await response.json();
+    console.log(result);
+}
 ```
 
 ## 🔧 配置说明
 
 ### 环境变量
 
-| 变量名                  | 必需 | 默认值      | 说明                   |
-| ----------------------- | ---- | ----------- | ---------------------- |
-| `HOST`                  | 否   | `127.0.0.1` | 服务器主机地址         |
-| `PORT`                  | 否   | `8000`      | 服务器端口             |
-| `DEBUG`                 | 否   | `false`     | 调试模式               |
-| `TUSHARE_TOKEN`         | 是   | -           | Tushare API 令牌       |
-| `FINNHUB_API_KEY`       | 是   | -           | Finnhub API 密钥       |
-| `ALPHA_VANTAGE_API_KEY` | 否   | -           | Alpha Vantage API 密钥 |
-| `NEWSAPI_KEY`           | 否   | -           | NewsAPI 密钥           |
-| `REDIS_HOST`            | 否   | `localhost` | Redis 主机地址         |
-| `REDIS_PORT`            | 否   | `6379`      | Redis 端口             |
-| `CACHE_TTL`             | 否   | `3600`      | 缓存过期时间 (秒)      |
+| 变量名                  | 必需 | 默认值      | 说明                     |
+| ----------------------- | ---- | ----------- | ------------------------ |
+| `HOST`                  | 否   | `127.0.0.1` | 服务器主机地址           |
+| `PORT`                  | 否   | `9998`      | 服务器端口               |
+| `DEBUG`                 | 否   | `false`     | 调试模式                 |
+| `TUSHARE_TOKEN`         | 是   | -           | Tushare API 令牌         |
+| `FINNHUB_API_KEY`       | 是   | -           | Finnhub API 密钥         |
+| `ALPHA_VANTAGE_API_KEY` | 否   | -           | Alpha Vantage API 密钥   |
+| `NEWSAPI_KEY`           | 否   | -           | NewsAPI 密钥             |
+| `TAVILY_API_KEY`        | 否   | -           | Tavily 深度研究 API 密钥 |
+| `REDIS_HOST`            | 否   | `localhost` | Redis 主机地址           |
+| `REDIS_PORT`            | 否   | `6379`      | Redis 端口               |
+| `CACHE_TTL`             | 否   | `3600`      | 缓存过期时间 (秒)        |
 
 ### Redis 配置
 
@@ -324,6 +422,20 @@ redis-server
 # 或者使用 Docker
 docker run -d --name redis -p 6379:6379 redis:alpine
 ```
+
+### API 限制与注意事项
+
+#### 数据源限制
+- **Tushare**: 需要注册并获取token，有API调用频率限制
+- **Tavily**: 深度研究功能需要API密钥，免费版有查询次数限制
+- **Finnhub**: 免费版有API调用限制
+- **AKShare**: 开源免费，但请合理使用避免过度请求
+
+#### 性能优化
+- 使用Redis缓存减少重复API调用
+- 支持多数据源降级策略
+- 异步处理提高并发性能
+- 智能查询优化减少无效请求
 
 ## 📊 项目结构
 
@@ -341,7 +453,7 @@ stock-mcp/
 │   │   └── templates/          # HTML 模板
 │   └── config/                 # 配置管理
 ├── tests/                      # 测试文件
-├── main.py                     # MCP 服务器启动脚本
+├── main.py                     # 统一启动脚本 (MCP + FastAPI)
 ├── start_server.py             # FastAPI 服务器启动脚本
 ├── requirements.txt            # Python 依赖
 ├── Dockerfile                  # Docker 配置
@@ -367,10 +479,15 @@ python test_mcp_meta.py
 
 ```bash
 # 测试健康检查
-curl http://localhost:8000/health
+curl http://localhost:9998/health
 
 # 测试股票价格 API
-curl -X GET "http://localhost:8000/api/stock/price?symbol=000001&start_date=2023-01-01&end_date=2023-12-31"
+curl -X GET "http://localhost:9998/api/stock/price?symbol=000001&start_date=2023-01-01&end_date=2023-12-31"
+
+# 测试MCP工具列表 (StreamableHTTP模式)
+curl -X POST "http://localhost:9999/tools/list" \
+  -H "Content-Type: application/json" \
+  -d '{}'
 ```
 
 ## 🔍 监控与日志
@@ -427,6 +544,7 @@ gunicorn --workers 4 --bind 0.0.0.0:5005 app:app
 - [Tushare](https://tushare.pro/) - 专业的金融数据服务
 - [FastMCP](https://github.com/jlowin/fastmcp) - 简洁的 MCP 服务器框架
 - [FastAPI](https://fastapi.tiangolo.com/) - 现代化的 Python Web 框架
+- [Tavily](https://tavily.com/) - AI 驱动的搜索和研究平台
 
 ---
 
