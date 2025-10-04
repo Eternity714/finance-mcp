@@ -122,11 +122,20 @@ class StockSymbolProcessor:
         elif classification["is_hk"]:
             # 港股：添加.HK后缀
             clean_code = self._extract_base_code(symbol)
+
             if clean_code.isdigit():
-                # yfinance 需要的是去除了前导零的数字代码 + .HK
-                # 例如 00005.HK -> 5.HK, 00700.HK -> 700.HK
-                numeric_code = str(int(clean_code))
-                return f"{numeric_code}.HK"
+                # yfinance 对港股代码格式的最终规律:
+                # 1. 先将代码转为整数，去除所有前导零 (e.g., '00700' -> 700)
+                numeric_code = int(clean_code)
+
+                # 2. 根据原始代码的位数决定格式
+                #  - 如果原始代码不足4位 (e.g., 5, 700), 则补零到4位
+                #  - 如果原始代码是4位或5位 (e.g., 9988, 89888), 则保持原样
+                if numeric_code < 1000:  # 适用于 1, 5, 700 等
+                    return f"{numeric_code:04d}.HK"
+                else:  # 适用于 9988, 89888 等
+                    return f"{numeric_code}.HK"
+
             return f"{clean_code.upper()}.HK"
 
         else:
