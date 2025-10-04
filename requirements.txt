@@ -121,3 +121,4 @@ xlrd
 yarl
 yfinance
 tavily-python
+pandas_market_calendars

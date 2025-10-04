@@ -13,9 +13,13 @@ from pydantic import BaseModel
 
 # 导入新的行情服务和数据传输对象
 from ..services.quote_service import QuoteService, StockMarketDataDTO
+from ..services.calendar_service import CalendarService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# 初始化服务实例
+calendar_service = CalendarService()
 
 
 @router.get("/stock/price")
@@ -157,3 +161,88 @@ async def get_stock_quotes(request: QuoteListRequest):
         raise HTTPException(
             status_code=500, detail=f"批量获取股票行情数据时发生内部错误: {e}"
         )
+
+
+# 日历服务 API 端点
+@router.get("/calendar/trading-days")
+async def get_trading_days(symbol: str, start_date: str, end_date: str):
+    """获取指定股票的交易日列表"""
+    try:
+        if not symbol:
+            raise HTTPException(status_code=400, detail="缺少股票代码参数")
+        if not start_date or not end_date:
+            raise HTTPException(status_code=400, detail="缺少日期参数")
+
+        result = calendar_service.get_trading_days(symbol, start_date, end_date)
+        return {
+            "success": True,
+            "data": result,
+            "message": f"成功获取 {symbol} 的交易日历",
+        }
+
+    except ValueError as e:
+        logger.error(f"参数错误: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"获取交易日失败: {e}")
+        raise HTTPException(status_code=500, detail="服务器内部错误")
+
+
+@router.get("/calendar/is-trading-day")
+async def check_trading_day(symbol: str, check_date: str):
+    """检查指定日期是否为交易日"""
+    try:
+        if not symbol:
+            raise HTTPException(status_code=400, detail="缺少股票代码参数")
+        if not check_date:
+            raise HTTPException(status_code=400, detail="缺少日期参数")
+
+        result = calendar_service.is_trading_day(symbol, check_date)
+        return {
+            "success": True,
+            "data": result,
+            "message": f"成功检查 {symbol} 在 {check_date} 的交易状态",
+        }
+
+    except ValueError as e:
+        logger.error(f"参数错误: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"检查交易日失败: {e}")
+        raise HTTPException(status_code=500, detail="服务器内部错误")
+
+
+@router.get("/calendar/trading-hours")
+async def get_trading_hours(symbol: str, check_date: str):
+    """获取指定日期的交易时间信息"""
+    try:
+        if not symbol:
+            raise HTTPException(status_code=400, detail="缺少股票代码参数")
+        if not check_date:
+            raise HTTPException(status_code=400, detail="缺少日期参数")
+
+        result = calendar_service.get_trading_hours(symbol, check_date)
+        return {
+            "success": True,
+            "data": result,
+            "message": f"成功获取 {symbol} 在 {check_date} 的交易时间",
+        }
+
+    except ValueError as e:
+        logger.error(f"参数错误: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"获取交易时间失败: {e}")
+        raise HTTPException(status_code=500, detail="服务器内部错误")
+
+
+@router.get("/calendar/supported-exchanges")
+async def get_supported_exchanges():
+    """获取支持的交易所列表"""
+    try:
+        result = calendar_service.get_supported_exchanges()
+        return {"success": True, "data": result, "message": "成功获取支持的交易所列表"}
+
+    except Exception as e:
+        logger.error(f"获取交易所列表失败: {e}")
+        raise HTTPException(status_code=500, detail="服务器内部错误")
