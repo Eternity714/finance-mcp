@@ -94,6 +94,46 @@ async def get_latest_news(symbol: str, days_back: int = 30):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/stock/news/date")
+async def get_news_by_date(symbol: str, target_date: str = None, days_before: int = 30):
+    """获取指定日期的股票新闻
+
+    Args:
+        symbol: 股票代码
+        target_date: 目标日期 (YYYY-MM-DD格式)，默认为当前日期
+        days_before: 向前查询的天数，默认30天
+
+    Returns:
+        包含新闻数据和元数据的统一响应格式
+    """
+    try:
+        if not symbol:
+            raise HTTPException(status_code=400, detail="缺少股票代码")
+
+        # 使用多数据源新闻服务
+        from ..services.new_service import get_news_service
+
+        news_service = get_news_service(use_proxy=False)
+
+        # 调用服务获取指定日期的新闻
+        result = news_service.get_news_for_date(symbol, target_date, days_before)
+
+        if not result.get("success", False):
+            error_msg = result.get("error", "获取新闻失败")
+            raise HTTPException(status_code=400, detail=error_msg)
+
+        return success_response(
+            data=result,
+            message=f"成功获取 {symbol} 在 {target_date or '当前日期'} 的新闻",
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取指定日期新闻失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/stock/quote")
 async def get_stock_quote(symbol: str):
     """
