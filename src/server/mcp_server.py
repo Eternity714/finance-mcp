@@ -12,7 +12,7 @@ from functools import partial
 from .services.akshare_service import AkshareService
 from .services.fundamentals_service import FundamentalsAnalysisService
 from .services.market_service import MarketDataService
-from .services.news_service import RealtimeNewsAggregator
+from .services.new_service import get_news_service
 from .services.tavily_service import TavilyService
 from .utils.redis_cache import get_redis_cache
 from ..config.settings import get_settings
@@ -67,7 +67,7 @@ class StockMCPServer:
             self.market_service = None
 
         try:
-            self.news_service = RealtimeNewsAggregator(self.settings)
+            self.news_service = get_news_service(use_proxy=False)
             logger.info("✅ 新闻服务初始化成功")
         except Exception as e:
             logger.error(f"❌ 新闻服务初始化失败: {e}")
@@ -161,15 +161,50 @@ class StockMCPServer:
                 相关新闻列表和情绪分析报告
             """
             try:
-                agg = self.news_service
-                if not agg:
+                service = self.news_service
+                if not service:
                     return "❌ 新闻服务当前不可用"
 
                 # 获取实时股票新闻
-                news_items = agg.get_realtime_stock_news(symbol, days_back)
+                result = service.get_news_for_date(symbol, None, days_back)
+
+                if not result.get("success", False):
+                    error_msg = result.get("error", "获取新闻失败")
+                    return f"❌ 获取 {symbol} 新闻失败: {error_msg}"
 
                 # 格式化新闻报告
-                report = agg.format_news_report(news_items, symbol)
+                news_list = result.get("news", [])
+                if not news_list:
+                    return f"📰 {symbol} 最近 {days_back} 天没有找到新闻"
+
+                report = f"# {symbol} 实时新闻分析报告\n\n"
+                report += f"📅 时间范围: {result['start_date'][:10]}"
+                report += f" 到 {result['end_date'][:10]}\n"
+                report += f"📊 新闻总数: {result['total_count']}条\n"
+                report += f"🌐 市场: {result['market']}\n\n"
+
+                # 数据源统计
+                report += "## 📡 数据源统计\n"
+                for source, count in result.get("source_stats", {}).items():
+                    report += f"- {source}: {count}条\n"
+                report += "\n"
+
+                # 显示新闻列表
+                report += "## 📰 新闻详情\n\n"
+                for i, news in enumerate(news_list[:20], 1):
+                    report += f"### {i}. {news['title']}\n"
+                    report += f"**来源**: {news['source']} | "
+                    report += f"**时间**: {news['publish_time'][:19]}\n"
+                    if news.get("content"):
+                        content = news["content"][:200]
+                        report += f"{content}...\n"
+                    if news.get("url"):
+                        report += f"🔗 [查看原文]({news['url']})\n"
+                    report += "\n"
+
+                if len(news_list) > 20:
+                    report += f"\n*还有 {len(news_list) - 20} 条新闻未显示*\n"
+
                 return report
 
             except Exception as e:
