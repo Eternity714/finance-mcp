@@ -74,21 +74,25 @@ async def get_latest_news(symbol: str, days_back: int = 30):
         if not symbol:
             raise HTTPException(status_code=400, detail="缺少股票代码")
 
-        # 使用新闻服务
-        from ..services.news_service import RealtimeNewsAggregator
-        from ...config.settings import get_settings
+        # 使用多数据源新闻服务
+        from ..services.new_service import get_news_service
 
-        settings = get_settings()
-        news_service = RealtimeNewsAggregator(settings)
+        news_service = get_news_service(use_proxy=False)
 
-        # 获取实时股票新闻
-        news_items = news_service.get_realtime_stock_news(symbol, days_back)
+        # 调用服务获取新闻（使用当前日期向前查询）
+        result = news_service.get_news_for_date(symbol, None, days_back)
 
-        # 格式化新闻报告
-        report = news_service.format_news_report(news_items, symbol)
+        if not result.get("success", False):
+            error_msg = result.get("error", "获取新闻失败")
+            raise HTTPException(status_code=400, detail=error_msg)
 
-        return success_response(data=report, message="成功获取最新股票新闻")
+        return success_response(
+            data=result,
+            message=f"成功获取 {symbol} 最近 {days_back} 天的新闻",
+        )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"获取最新新闻失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
