@@ -4,6 +4,12 @@ __pycache__/
 *$py.class
 *.pyc
 
+# Backup files and archives
+README_BACKUP_*.md
+*.backup
+*.bak
+archive/
+
 # C extensions
 *.so
 

@@ -1,0 +1,63 @@
+# filepath: /Users/huweihua/java/stock-mcp/.dockerignore
+# Git 相关
+.git
+.gitignore
+.gitattributes
+
+# Python 相关
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# 虚拟环境
+venv/
+env/
+ENV/
+.venv
+
+# IDE 相关
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 测试相关
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+tests/
+
+# 文档
+*.md
+docs/
+*.txt
+!requirements.txt
+
+# 日志
+*.log
+logs/
+
+# 环境变量文件
+.env
+.env.local
+.env.*.local
+
+# Docker 相关
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# 其他
+*.bak
+*.tmp
+temp/
+tmp/
