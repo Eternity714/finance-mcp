@@ -9,7 +9,7 @@
 [![Docker](https://img.shields.io/badge/docker-ready-brightgreen.svg)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-[快速开始](#-快速开始) • [功能特性](#-核心功能) • [API 文档](http://localhost:9998/docs) • [配置指南](docs/GUIDE.md)
+[快速开始](#-快速开始) • [功能特性](#-核心功能) • [API 文档](docs/API.md) • [配置指南](docs/GUIDE.md)
 
 </div>
 
@@ -43,26 +43,50 @@ open http://localhost:9998/docs
 
 **🎯 5分钟体验核心功能：**
 ```bash
-# 查询茅台股价
-curl "http://localhost:9998/api/quote?symbol=600519"
+# 查询茅台历史价格及AI分析
+curl "http://localhost:9998/stock/price?symbol=600519&start_date=2024-01-01&end_date=2025-01-01"
 
-# 分析特斯拉新闻情绪
-curl "http://localhost:9998/api/news/sentiment?symbol=TSLA&days=7"
+# 获取苹果实时行情
+curl "http://localhost:9998/api/stock/news?symbol=AAPL"
 
-# AI 研究电动汽车行业
-curl -X POST "http://localhost:9998/api/research" \
-  -d '{"topic":"电动汽车行业趋势"}'
+# 查询股票基本面数据
+curl "http://localhost:9998/api/stock/fundamental?symbol=000008&curr_date=2025-06-01"
+
+# 批量查询多只股票
+curl -X POST "http://localhost:9998/api/stock/quotes" \
+  -H "Content-Type: application/json" \
+  -d '{"symbols": ["AAPL", "TSLA", "MSFT"]}'
 ```
 
 ---
 
 ## 🎯 核心功能
 
+### 📋 API 接口概览
+
+| 分类           | 接口           | 端点                                    | 描述                |
+| -------------- | -------------- | --------------------------------------- | ------------------- |
+| 📊 **行情数据** | Market Price   | `GET /stock/price`                      | 历史价格+AI分析报告 |
+|                | Stock Quote    | `GET /api/stock/news`                   | 实时行情快照        |
+|                | Stock Quotes   | `POST /api/stock/quotes`                | 批量行情查询        |
+| 💼 **基本面**   | Fundamental    | `GET /api/stock/fundamental`            | 财务基本面数据      |
+| 📰 **新闻资讯** | Stock News     | `GET /api/stock/news`                   | 最新股票新闻        |
+|                | News by Date   | `GET /api/stock/news/date`              | 指定日期新闻        |
+| 📅 **交易日历** | Trading Days   | `GET /api/calendar/trading-days`        | 交易日列表          |
+|                | Is Trading Day | `GET /api/calendar/is-trading-day`      | 交易日检查          |
+|                | Trading Hours  | `GET /api/calendar/trading-hours`       | 交易时间信息        |
+|                | Exchanges      | `GET /api/calendar/supported-exchanges` | 支持的交易所        |
+
+> 💡 **提示**: 所有接口支持 A股、港股、美股三大市场  
+> 📚 **详细文档**: 启动后访问 http://localhost:9998/docs
+
+---
+
 <table>
 <tr>
 <td width="50%">
 
-### 📊 数据查询
+### 📊 数据查询能力
 - ✅ **实时行情** - 分钟级价格/成交量
 - ✅ **历史数据** - K线图、复权价格
 - ✅ **财务报表** - 资产负债表、现金流
@@ -117,29 +141,349 @@ NEWS_API_KEY=your_key       # 新闻聚合
 
 ---
 
-## 📡 API 使用
+## 📡 API 接口文档
 
-### 核心接口示例
+### 🎨 交互式文档
 
-```bash
-# 股票行情（支持 A股/美股/港股）
-GET /api/quote?symbol=600519&market=CN
+启动服务后访问以下地址查看完整的 Swagger UI 文档：
+- **Swagger UI**: http://localhost:9998/docs
+- **ReDoc**: http://localhost:9998/redoc
 
-# 财务数据
-GET /api/financial?symbol=AAPL&report_type=income
+---
 
-# 新闻情绪（返回情绪评分 -1~1）
-GET /api/news/sentiment?symbol=TSLA&days=7
+### 📊 股票数据接口
 
-# AI 深度研究
-POST /api/research
+<details open>
+<summary><b>1️⃣ 市场行情分析 - Market Price</b></summary>
+
+#### 接口信息
+- **路径**: `GET /stock/price`
+- **描述**: 获取指定股票的历史价格数据及AI分析报告
+
+#### 请求参数
+| 参数名          | 类型   | 必填 | 说明             | 示例             |
+| --------------- | ------ | ---- | ---------------- | ---------------- |
+| `symbol`        | string | 是   | 股票代码         | `000001`, `AAPL` |
+| `start_date`    | string | 否   | 开始日期         | `2024-07-13`     |
+| `end_date`      | string | 否   | 结束日期         | `2025-07-13`     |
+| `Authorization` | string | 否   | 认证令牌(Header) | `a7f3518b-...`   |
+
+#### 响应示例
+```json
 {
-  "topic": "新能源汽车行业分析",
-  "depth": "comprehensive"
+  "status": "success",
+  "message": "成功获取股票价格数据和分析报告",
+  "data": "# AAPL 股票分析报告\n\n## 📊 基本信息\n- **股票名称**: 苹果公司\n- **股票代码**: AAPL\n- **分析期间**: 2025-07-12 至 2025-08-12\n\n## 💰 价格表现\n- **当前价格**: $227.18\n- **期间涨跌**: $+18.80 (+9.02%)\n- **期间最高**: $230.74\n- **期间最低**: $201.27\n- **平均成交量**: 60,489,490\n\n## 📈 技术指标\n- **5日均线**: $218.35\n- **20日均线**: $212.25\n- **近期趋势**: 上升"
 }
 ```
 
-**📚 完整接口文档**：启动服务后访问 http://localhost:9998/docs
+#### 使用示例
+```bash
+curl -X GET "http://localhost:9998/stock/price?symbol=AAPL&start_date=2024-07-13&end_date=2025-07-13" \
+  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
+```
+
+![Market Price API](docs/api-screenshots/market-price.png)
+
+</details>
+
+<details>
+<summary><b>2️⃣ 基本面数据 - Stock Fundamental</b></summary>
+
+#### 接口信息
+- **路径**: `GET /api/stock/fundamental`
+- **描述**: 获取股票基本面财务数据
+
+#### 请求参数
+| 参数名          | 类型   | 必填 | 说明             | 示例               |
+| --------------- | ------ | ---- | ---------------- | ------------------ |
+| `symbol`        | string | 是   | 股票代码         | `000008`, `600519` |
+| `curr_date`     | string | 否   | 查询日期         | `2025-06-01`       |
+| `Authorization` | string | 否   | 认证令牌(Header) | `a7f3518b-...`     |
+
+#### 使用示例
+```bash
+curl -X GET "http://localhost:9998/api/stock/fundamental?symbol=000008&curr_date=2025-06-01" \
+  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
+```
+
+![Stock Fundamental API](docs/api-screenshots/stock-fundamental.png)
+
+</details>
+
+<details>
+<summary><b>3️⃣ 实时行情 - Stock Quote</b></summary>
+
+#### 接口信息
+- **路径**: `GET /api/stock/news`
+- **描述**: 获取股票实时行情快照
+
+#### 请求参数
+| 参数名          | 类型   | 必填 | 说明             | 示例             |
+| --------------- | ------ | ---- | ---------------- | ---------------- |
+| `symbol`        | string | 是   | 股票代码         | `000001`, `AAPL` |
+| `Authorization` | string | 否   | 认证令牌(Header) | `a7f3518b-...`   |
+
+#### 响应示例
+```json
+{
+  "status": "success",
+  "message": "成功获取 AAPL 的实时行情",
+  "data": {
+    "ticker": "AAPL",
+    "currentPrice": "256.48",
+    "dailyChangePercent": "-0.0818107444777616",
+    "peRatio": "38.919575",
+    "marketCap": "3806263246848",
+    "source": "yfinance"
+  }
+}
+```
+
+#### 使用示例
+```bash
+curl -X GET "http://localhost:9998/api/stock/news?symbol=AAPL" \
+  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
+```
+
+![Stock Quote API](docs/api-screenshots/stock-quote.png)
+
+</details>
+
+<details>
+<summary><b>4️⃣ 批量行情查询 - Stock Quotes</b></summary>
+
+#### 接口信息
+- **路径**: `POST /api/stock/quotes`
+- **描述**: 批量查询多个股票的实时行情
+
+#### 请求参数
+| 参数名          | 类型   | 必填 | 说明             |
+| --------------- | ------ | ---- | ---------------- |
+| `symbols`       | array  | 是   | 股票代码列表     |
+| `Authorization` | string | 否   | 认证令牌(Header) |
+
+#### 使用示例
+```bash
+curl -X POST "http://localhost:9998/api/stock/quotes" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903" \
+  -d '{"symbols": ["AAPL", "TSLA", "MSFT"]}'
+```
+
+![Stock Quotes API](docs/api-screenshots/stock-quotes.png)
+
+</details>
+
+---
+
+### 📰 新闻数据接口
+
+<details>
+<summary><b>5️⃣ 股票新闻 - Stock News</b></summary>
+
+#### 接口信息
+- **路径**: `GET /api/stock/news`
+- **描述**: 获取指定股票的最新新闻
+
+#### 请求参数
+| 参数名          | 类型   | 必填 | 说明             | 示例             |
+| --------------- | ------ | ---- | ---------------- | ---------------- |
+| `symbol`        | string | 是   | 股票代码         | `000001`, `AAPL` |
+| `Authorization` | string | 否   | 认证令牌(Header) | `a7f3518b-...`   |
+
+#### 使用示例
+```bash
+curl -X GET "http://localhost:9998/api/stock/news?symbol=000001" \
+  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
+```
+
+![Stock News API](docs/api-screenshots/stock-news.png)
+
+</details>
+
+<details>
+<summary><b>6️⃣ 指定日期新闻 - News by Date</b></summary>
+
+#### 接口信息
+- **路径**: `GET /api/stock/news/date`
+- **描述**: 获取指定日期范围内的股票新闻
+
+#### 请求参数
+| 参数名          | 类型    | 必填 | 说明             | 示例           |
+| --------------- | ------- | ---- | ---------------- | -------------- |
+| `symbol`        | string  | 是   | 股票代码         | `000001`       |
+| `target_date`   | string  | 是   | 目标日期         | `2025-09-10`   |
+| `days_before`   | integer | 否   | 向前查询天数     | `7`            |
+| `Authorization` | string  | 否   | 认证令牌(Header) | `a7f3518b-...` |
+
+#### 使用示例
+```bash
+curl -X GET "http://localhost:9998/api/stock/news/date?symbol=000001&target_date=2025-09-10&days_before=7" \
+  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
+```
+
+![News by Date API](docs/api-screenshots/获取指定日期的新闻.png)
+
+</details>
+
+---
+
+### 📅 交易日历接口
+
+<details>
+<summary><b>7️⃣ 交易日列表 - Trading Days</b></summary>
+
+#### 接口信息
+- **路径**: `GET /api/calendar/trading-days`
+- **描述**: 获取指定时间范围内的交易日列表
+
+#### 请求参数
+| 参数名          | 类型   | 必填 | 说明             | 示例           |
+| --------------- | ------ | ---- | ---------------- | -------------- |
+| `symbol`        | string | 是   | 股票代码         | `000001`       |
+| `start_date`    | string | 是   | 开始日期         | `2025-01-01`   |
+| `end_date`      | string | 是   | 结束日期         | `2025-09-01`   |
+| `Authorization` | string | 否   | 认证令牌(Header) | `a7f3518b-...` |
+
+#### 使用示例
+```bash
+curl -X GET "http://localhost:9998/api/calendar/trading-days?symbol=000001&start_date=2025-01-01&end_date=2025-09-01" \
+  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
+```
+
+![Trading Days API](docs/api-screenshots/获取指定股票的交易日列表.png)
+
+</details>
+
+<details>
+<summary><b>8️⃣ 交易日检查 - Is Trading Day</b></summary>
+
+#### 接口信息
+- **路径**: `GET /api/calendar/is-trading-day`
+- **描述**: 检查指定日期是否为交易日
+
+#### 请求参数
+| 参数名          | 类型   | 必填 | 说明             | 示例           |
+| --------------- | ------ | ---- | ---------------- | -------------- |
+| `symbol`        | string | 是   | 股票代码         | `000001`       |
+| `check_date`    | string | 是   | 检查日期         | `2025-09-30`   |
+| `Authorization` | string | 否   | 认证令牌(Header) | `a7f3518b-...` |
+
+#### 使用示例
+```bash
+curl -X GET "http://localhost:9998/api/calendar/is-trading-day?symbol=000001&check_date=2025-09-30" \
+  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
+```
+
+</details>
+
+<details>
+<summary><b>9️⃣ 交易时间 - Trading Hours</b></summary>
+
+#### 接口信息
+- **路径**: `GET /api/calendar/trading-hours`
+- **描述**: 获取指定日期的交易时间信息
+
+#### 请求参数
+| 参数名          | 类型   | 必填 | 说明             | 示例           |
+| --------------- | ------ | ---- | ---------------- | -------------- |
+| `symbol`        | string | 是   | 股票代码         | `000001`       |
+| `check_date`    | string | 是   | 检查日期         | `2025-09-30`   |
+| `Authorization` | string | 否   | 认证令牌(Header) | `a7f3518b-...` |
+
+#### 使用示例
+```bash
+curl -X GET "http://localhost:9998/api/calendar/trading-hours?symbol=000001&check_date=2025-09-30" \
+  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
+```
+
+</details>
+
+<details>
+<summary><b>🔟 支持的交易所 - Supported Exchanges</b></summary>
+
+#### 接口信息
+- **路径**: `GET /api/calendar/supported-exchanges`
+- **描述**: 获取系统支持的所有交易所列表
+
+#### 请求参数
+| 参数名          | 类型   | 必填 | 说明             |
+| --------------- | ------ | ---- | ---------------- |
+| `Authorization` | string | 否   | 认证令牌(Header) |
+
+#### 响应示例
+```json
+{
+  "status": "success",
+  "message": "成功获取支持的交易所列表",
+  "data": {
+    "total_count": 200,
+    "regions": {
+      "美国": ["NYSE", "NASDAQ"],
+      "中国": ["XSHG", "XSHE"],
+      "欧洲": ["XPAR", "XLON"],
+      "亚太": ["NSE", "TSE"],
+      "加拿大": ["TSX"]
+    },
+    "all_exchanges": ["NYSE", "NASDAQ", "XSHG", "XSHE", "..."]
+  }
+}
+```
+
+#### 使用示例
+```bash
+curl -X GET "http://localhost:9998/api/calendar/supported-exchanges" \
+  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
+```
+
+![Supported Exchanges API](docs/api-screenshots/获取支持的交易所列表.png)
+
+</details>
+
+---
+
+### 🔐 认证说明
+
+所有API接口均支持可选的 `Authorization` Header 进行身份验证：
+
+```bash
+-H "Authorization: your-api-token-here"
+```
+
+**获取Token**: 请联系管理员或在配置文件中设置自定义Token。
+
+---
+
+### 📊 快速测试
+
+使用以下命令快速测试主要接口：
+
+```bash
+# 查询茅台股价
+curl "http://localhost:9998/stock/price?symbol=600519&start_date=2024-01-01&end_date=2025-01-01"
+
+# 获取苹果实时行情
+curl "http://localhost:9998/api/stock/news?symbol=AAPL"
+
+# 检查今天是否为交易日
+curl "http://localhost:9998/api/calendar/is-trading-day?symbol=000001&check_date=$(date +%Y-%m-%d)"
+
+# 获取所有支持的交易所
+curl "http://localhost:9998/api/calendar/supported-exchanges"
+```
+
+---
+
+### 📖 API 设计规范
+
+本项目API遵循以下设计原则：
+
+✅ **RESTful风格** - 使用标准HTTP方法(GET/POST)  
+✅ **统一响应格式** - 所有接口返回统一的JSON结构  
+✅ **详细错误信息** - 错误响应包含明确的错误码和描述  
+✅ **OpenAPI 3.0** - 完整的API规范文档([查看](stock-mcp.openapi.json))  
+✅ **自动文档生成** - Swagger UI + ReDoc双文档支持
 
 ---
 
@@ -214,8 +558,12 @@ grep TUSHARE_TOKEN .env
 
 ## 📚 文档
 
-- [📖 完整使用指南](docs/GUIDE.md) - 配置、部署、API 详解
+- [📡 完整 API 文档](docs/API.md) - 所有接口详细说明、参数、示例
+- [💡 API 使用示例](docs/API_EXAMPLES.md) - 实际场景的代码示例
+- [📖 使用指南](docs/GUIDE.md) - 配置、部署、最佳实践
 - [🔧 开发文档](docs/DEVELOPMENT.md) - 架构设计、二次开发
+- [🌐 OpenAPI 规范](stock-mcp.openapi.json) - 标准API规范文件
+- [💻 Swagger UI](http://localhost:9998/docs) - 交互式API测试(服务启动后访问)
 
 ---
 

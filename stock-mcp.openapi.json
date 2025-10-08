@@ -1,0 +1,995 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "trading-agent",
+    "description": "",
+    "version": "1.0.0"
+  },
+  "tags": [
+    {
+      "name": "stock-http"
+    }
+  ],
+  "paths": {
+    "/stock/price": {
+      "get": {
+        "summary": "market-price",
+        "x-apifox-folder": "stock-http",
+        "x-apifox-status": "developing",
+        "deprecated": false,
+        "description": "",
+        "tags": [
+          "stock-http"
+        ],
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "example": "000001",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "start_date",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "example": "2024-07-13",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "example": "2025-07-13",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "",
+            "example": "a7f3518b-2983-4d29-bd1d-15a13e470903",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {},
+                  "x-apifox-ignore-properties": [],
+                  "x-apifox-orders": []
+                },
+                "examples": {
+                  "1": {
+                    "summary": "成功示例",
+                    "value": {
+                      "status": "success",
+                      "message": "成功获取股票价格数据和分析报告",
+                      "data": "# AAPL 股票分析报告\n\n## 📊 基本信息\n- **股票名称**: 苹果公司\n- **股票代码**: AAPL\n- **分析期间**: 2025-07-12 至 2025-08-12\n- **数据来源**: yfinance\n\n## 💰 价格表现\n- **当前价格**: $227.18\n- **期间涨跌**: $+18.80 (+9.02%)\n- **期间最高**: $230.74\n- **期间最低**: $201.27\n- **平均成交量**: 60,489,490\n\n## 📈 技术指标\n- **5日均线**: $218.35\n- **20日均线**: $212.25\n- **近期趋势**: 上升\n\n## ⚠️ 风险提示\n本报告仅供参考，不构成投资建议。股市有风险，投资需谨慎。\n\n---\n*报告生成时间: 2025-10-08 11:43:59*\n"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-run-in-apifox": "https://apifox.com/web/project/6759283/apis/api-321233450-run",
+        "security": []
+      }
+    },
+    "/api/stock/fundamental": {
+      "get": {
+        "summary": "stock-fundamental",
+        "x-apifox-folder": "stock-http",
+        "x-apifox-status": "developing",
+        "deprecated": false,
+        "description": "",
+        "tags": [
+          "stock-http"
+        ],
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "example": "000008",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "curr_date",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "example": "2025-06-01",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "",
+            "example": "a7f3518b-2983-4d29-bd1d-15a13e470903",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {},
+                  "x-apifox-ignore-properties": [],
+                  "x-apifox-orders": []
+                }
+              }
+            }
+          }
+        },
+        "x-run-in-apifox": "https://apifox.com/web/project/6759283/apis/api-322759155-run",
+        "security": []
+      }
+    },
+    "/api/stock/news": {
+      "get": {
+        "summary": "stock-quote",
+        "x-apifox-folder": "stock-http",
+        "x-apifox-status": "developing",
+        "deprecated": false,
+        "description": "",
+        "tags": [
+          "stock-http"
+        ],
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "example": "000001",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "",
+            "example": "a7f3518b-2983-4d29-bd1d-15a13e470903",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {},
+                  "x-apifox-ignore-properties": [],
+                  "x-apifox-orders": []
+                },
+                "examples": {
+                  "1": {
+                    "summary": "成功示例",
+                    "value": {
+                      "status": "success",
+                      "message": "成功获取 AAPL 的实时行情",
+                      "data": {
+                        "ticker": "AAPL",
+                        "currentPrice": "256.48",
+                        "dailyChangePercent": "-0.0818107444777616",
+                        "peRatio": "38.919575",
+                        "marketCap": "3806263246848",
+                        "source": "yfinance"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-run-in-apifox": "https://apifox.com/web/project/6759283/apis/api-357115547-run",
+        "security": []
+      }
+    },
+    "/api/stock/quotes": {
+      "post": {
+        "summary": "stock-quotes",
+        "x-apifox-folder": "stock-http",
+        "x-apifox-status": "developing",
+        "deprecated": false,
+        "description": "",
+        "tags": [
+          "stock-http"
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "",
+            "example": "a7f3518b-2983-4d29-bd1d-15a13e470903",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {},
+                  "x-apifox-ignore-properties": [],
+                  "x-apifox-orders": []
+                }
+              }
+            }
+          }
+        },
+        "x-run-in-apifox": "https://apifox.com/web/project/6759283/apis/api-357124919-run",
+        "security": []
+      }
+    },
+    "/api/calendar/trading-days": {
+      "get": {
+        "summary": "获取指定股票的交易日列表",
+        "x-apifox-folder": "stock-http",
+        "x-apifox-status": "developing",
+        "deprecated": false,
+        "description": "",
+        "tags": [
+          "stock-http"
+        ],
+        "parameters": [
+          {
+            "name": "start_date",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "example": "2025-01-01",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "example": "2025-09-01",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "symbol",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "example": "000001",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "",
+            "example": "a7f3518b-2983-4d29-bd1d-15a13e470903",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {},
+                  "x-apifox-ignore-properties": [],
+                  "x-apifox-orders": []
+                }
+              }
+            }
+          }
+        },
+        "x-run-in-apifox": "https://apifox.com/web/project/6759283/apis/api-357975985-run",
+        "security": []
+      }
+    },
+    "/api/calendar/is-trading-day": {
+      "get": {
+        "summary": "检查指定日期是否为交易日",
+        "x-apifox-folder": "stock-http",
+        "x-apifox-status": "developing",
+        "deprecated": false,
+        "description": "",
+        "tags": [
+          "stock-http"
+        ],
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "example": "000001",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "check_date",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "example": "2025-09-30",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "",
+            "example": "a7f3518b-2983-4d29-bd1d-15a13e470903",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {},
+                  "x-apifox-ignore-properties": [],
+                  "x-apifox-orders": []
+                }
+              }
+            }
+          }
+        },
+        "x-run-in-apifox": "https://apifox.com/web/project/6759283/apis/api-357976001-run",
+        "security": []
+      }
+    },
+    "/api/calendar/trading-hours": {
+      "get": {
+        "summary": "获取指定日期的交易时间信息",
+        "x-apifox-folder": "stock-http",
+        "x-apifox-status": "developing",
+        "deprecated": false,
+        "description": "",
+        "tags": [
+          "stock-http"
+        ],
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "example": "000001",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "check_date",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "example": "2025-09-30",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "",
+            "example": "a7f3518b-2983-4d29-bd1d-15a13e470903",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {},
+                  "x-apifox-ignore-properties": [],
+                  "x-apifox-orders": []
+                }
+              }
+            }
+          }
+        },
+        "x-run-in-apifox": "https://apifox.com/web/project/6759283/apis/api-357976007-run",
+        "security": []
+      }
+    },
+    "/api/calendar/supported-exchanges": {
+      "get": {
+        "summary": "获取支持的交易所列表",
+        "x-apifox-folder": "stock-http",
+        "x-apifox-status": "developing",
+        "deprecated": false,
+        "description": "",
+        "tags": [
+          "stock-http"
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "",
+            "example": "a7f3518b-2983-4d29-bd1d-15a13e470903",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {},
+                  "x-apifox-ignore-properties": [],
+                  "x-apifox-orders": []
+                },
+                "examples": {
+                  "1": {
+                    "summary": "成功示例",
+                    "value": {
+                      "status": "success",
+                      "message": "成功获取支持的交易所列表",
+                      "data": {
+                        "total_count": 200,
+                        "regions": {
+                          "美国": [
+                            "BATS",
+                            "IEX",
+                            "NASDAQ",
+                            "NYSE"
+                          ],
+                          "中国": [
+                            "HKEX",
+                            "SSE",
+                            "XSHG"
+                          ],
+                          "欧洲": [
+                            "EUREX",
+                            "LSE",
+                            "XAMS",
+                            "XBRU",
+                            "XETR",
+                            "XMIL",
+                            "XPAR"
+                          ],
+                          "亚太": [
+                            "ASX",
+                            "BSE",
+                            "JPX",
+                            "NSE"
+                          ],
+                          "加拿大": [
+                            "TSX"
+                          ],
+                          "其他": [
+                            "24/5",
+                            "24/7",
+                            "AIXK",
+                            "ALI",
+                            "ASEX",
+                            "B3",
+                            "BMF",
+                            "BUS",
+                            "BVMF",
+                            "Bond_Markets_JP",
+                            "Bond_Markets_UK",
+                            "Bond_Markets_US",
+                            "C-GEO",
+                            "CBOE_Equity_Options",
+                            "CBOE_Futures",
+                            "CBOE_Index_Options",
+                            "CBOT_Agriculture",
+                            "CBOT_Bond",
+                            "CBOT_Equity",
+                            "CBOT_InterestRate",
+                            "CBOT_Rate",
+                            "CFE",
+                            "CGO",
+                            "CL",
+                            "CME Globex Crypto",
+                            "CME Globex Cryptocurrencies",
+                            "CME Globex Equity",
+                            "CME Globex Fixed Income",
+                            "CME Globex Interest Rate Products",
+                            "CMEGlobex_ALI",
+                            "CMEGlobex_Aluminum",
+                            "CMEGlobex_BUS",
+                            "CMEGlobex_BaseMetals",
+                            "CMEGlobex_CGO",
+                            "CMEGlobex_CL",
+                            "CMEGlobex_CarbonOffset",
+                            "CMEGlobex_Copper",
+                            "CMEGlobex_Crude",
+                            "CMEGlobex_CrudeAndRefined",
+                            "CMEGlobex_Dutch_NatGas",
+                            "CMEGlobex_Energy",
+                            "CMEGlobex_EnergyAndMetals",
+                            "CMEGlobex_FX",
+                            "CMEGlobex_Feeder_Cattle",
+                            "CMEGlobex_FerrousMetals",
+                            "CMEGlobex_GC",
+                            "CMEGlobex_GEO",
+                            "CMEGlobex_Gas",
+                            "CMEGlobex_Gold",
+                            "CMEGlobex_Grains",
+                            "CMEGlobex_HG",
+                            "CMEGlobex_HO",
+                            "CMEGlobex_HRC",
+                            "CMEGlobex_LastDay_NatGas",
+                            "CMEGlobex_Lean_Hog",
+                            "CMEGlobex_Live_Cattle",
+                            "CMEGlobex_Livestock",
+                            "CMEGlobex_MCL",
+                            "CMEGlobex_Metals",
+                            "CMEGlobex_MicroCrude",
+                            "CMEGlobex_NG",
+                            "CMEGlobex_NGO",
+                            "CMEGlobex_NN",
+                            "CMEGlobex_NYHarbor",
+                            "CMEGlobex_NatGas",
+                            "CMEGlobex_Oilseeds",
+                            "CMEGlobex_PL",
+                            "CMEGlobex_Platinum",
+                            "CMEGlobex_Port_Cutout",
+                            "CMEGlobex_PreciousMetals",
+                            "CMEGlobex_QC",
+                            "CMEGlobex_RB",
+                            "CMEGlobex_SI",
+                            "CMEGlobex_Silver",
+                            "CMEGlobex_TIO",
+                            "CMEGlobex_TTF",
+                            "CMES",
+                            "CME_Agriculture",
+                            "CME_Bond",
+                            "CME_Currency",
+                            "CME_Equity",
+                            "CME_FX",
+                            "CME_InterestRate",
+                            "CME_Rate",
+                            "COMEX_Agriculture",
+                            "Capital_Markets_JP",
+                            "Capital_Markets_UK",
+                            "Capital_Markets_US",
+                            "DJIA",
+                            "DOW",
+                            "EUREX_Bond",
+                            "Financial_Markets_JP",
+                            "Financial_Markets_UK",
+                            "Financial_Markets_US",
+                            "GC",
+                            "GEO",
+                            "HG",
+                            "HO",
+                            "HRC",
+                            "ICE",
+                            "ICEUS",
+                            "IEPA",
+                            "Investors_Exchange",
+                            "MCL",
+                            "NG",
+                            "NGO",
+                            "NN",
+                            "NYFE",
+                            "NYMEX_Agriculture",
+                            "OSE",
+                            "PL",
+                            "QC",
+                            "RB",
+                            "SI",
+                            "SIFMAJP",
+                            "SIFMAUK",
+                            "SIFMAUS",
+                            "SIFMA_JP",
+                            "SIFMA_UK",
+                            "SIFMA_US",
+                            "SIX",
+                            "TASE",
+                            "TIO",
+                            "TSXV",
+                            "TTF",
+                            "XASX",
+                            "XBDA",
+                            "XBKK",
+                            "XBOG",
+                            "XBOM",
+                            "XBSE",
+                            "XBUD",
+                            "XBUE",
+                            "XCBF",
+                            "XCSE",
+                            "XCYS",
+                            "XDUB",
+                            "XDUS",
+                            "XEEE",
+                            "XFRA",
+                            "XHAM",
+                            "XHEL",
+                            "XHKG",
+                            "XICE",
+                            "XIDX",
+                            "XIST",
+                            "XJPX",
+                            "XJSE",
+                            "XKAR",
+                            "XKLS",
+                            "XKRX",
+                            "XLIM",
+                            "XLIS",
+                            "XLIT",
+                            "XLON",
+                            "XLUX",
+                            "XMAD",
+                            "XMEX",
+                            "XMOS",
+                            "XNSE",
+                            "XNYS",
+                            "XNZE",
+                            "XOSL",
+                            "XPHS",
+                            "XPRA",
+                            "XRIS",
+                            "XSAU",
+                            "XSES",
+                            "XSGO",
+                            "XSTO",
+                            "XSWX",
+                            "XTAE",
+                            "XTAI",
+                            "XTAL",
+                            "XTKS",
+                            "XTSE",
+                            "XWAR",
+                            "XWBO",
+                            "XZAG",
+                            "stock",
+                            "us_futures"
+                          ]
+                        },
+                        "all_exchanges": [
+                          "24/5",
+                          "24/7",
+                          "AIXK",
+                          "ALI",
+                          "ASEX",
+                          "ASX",
+                          "B3",
+                          "BATS",
+                          "BMF",
+                          "BSE",
+                          "BUS",
+                          "BVMF",
+                          "Bond_Markets_JP",
+                          "Bond_Markets_UK",
+                          "Bond_Markets_US",
+                          "C-GEO",
+                          "CBOE_Equity_Options",
+                          "CBOE_Futures",
+                          "CBOE_Index_Options",
+                          "CBOT_Agriculture",
+                          "CBOT_Bond",
+                          "CBOT_Equity",
+                          "CBOT_InterestRate",
+                          "CBOT_Rate",
+                          "CFE",
+                          "CGO",
+                          "CL",
+                          "CME Globex Crypto",
+                          "CME Globex Cryptocurrencies",
+                          "CME Globex Equity",
+                          "CME Globex Fixed Income",
+                          "CME Globex Interest Rate Products",
+                          "CMEGlobex_ALI",
+                          "CMEGlobex_Aluminum",
+                          "CMEGlobex_BUS",
+                          "CMEGlobex_BaseMetals",
+                          "CMEGlobex_CGO",
+                          "CMEGlobex_CL",
+                          "CMEGlobex_CarbonOffset",
+                          "CMEGlobex_Copper",
+                          "CMEGlobex_Crude",
+                          "CMEGlobex_CrudeAndRefined",
+                          "CMEGlobex_Dutch_NatGas",
+                          "CMEGlobex_Energy",
+                          "CMEGlobex_EnergyAndMetals",
+                          "CMEGlobex_FX",
+                          "CMEGlobex_Feeder_Cattle",
+                          "CMEGlobex_FerrousMetals",
+                          "CMEGlobex_GC",
+                          "CMEGlobex_GEO",
+                          "CMEGlobex_Gas",
+                          "CMEGlobex_Gold",
+                          "CMEGlobex_Grains",
+                          "CMEGlobex_HG",
+                          "CMEGlobex_HO",
+                          "CMEGlobex_HRC",
+                          "CMEGlobex_LastDay_NatGas",
+                          "CMEGlobex_Lean_Hog",
+                          "CMEGlobex_Live_Cattle",
+                          "CMEGlobex_Livestock",
+                          "CMEGlobex_MCL",
+                          "CMEGlobex_Metals",
+                          "CMEGlobex_MicroCrude",
+                          "CMEGlobex_NG",
+                          "CMEGlobex_NGO",
+                          "CMEGlobex_NN",
+                          "CMEGlobex_NYHarbor",
+                          "CMEGlobex_NatGas",
+                          "CMEGlobex_Oilseeds",
+                          "CMEGlobex_PL",
+                          "CMEGlobex_Platinum",
+                          "CMEGlobex_Port_Cutout",
+                          "CMEGlobex_PreciousMetals",
+                          "CMEGlobex_QC",
+                          "CMEGlobex_RB",
+                          "CMEGlobex_SI",
+                          "CMEGlobex_Silver",
+                          "CMEGlobex_TIO",
+                          "CMEGlobex_TTF",
+                          "CMES",
+                          "CME_Agriculture",
+                          "CME_Bond",
+                          "CME_Currency",
+                          "CME_Equity",
+                          "CME_FX",
+                          "CME_InterestRate",
+                          "CME_Rate",
+                          "COMEX_Agriculture",
+                          "Capital_Markets_JP",
+                          "Capital_Markets_UK",
+                          "Capital_Markets_US",
+                          "DJIA",
+                          "DOW",
+                          "EUREX",
+                          "EUREX_Bond",
+                          "Financial_Markets_JP",
+                          "Financial_Markets_UK",
+                          "Financial_Markets_US",
+                          "GC",
+                          "GEO",
+                          "HG",
+                          "HKEX",
+                          "HO",
+                          "HRC",
+                          "ICE",
+                          "ICEUS",
+                          "IEPA",
+                          "IEX",
+                          "Investors_Exchange",
+                          "JPX",
+                          "LSE",
+                          "MCL",
+                          "NASDAQ",
+                          "NG",
+                          "NGO",
+                          "NN",
+                          "NSE",
+                          "NYFE",
+                          "NYMEX_Agriculture",
+                          "NYSE",
+                          "OSE",
+                          "PL",
+                          "QC",
+                          "RB",
+                          "SI",
+                          "SIFMAJP",
+                          "SIFMAUK",
+                          "SIFMAUS",
+                          "SIFMA_JP",
+                          "SIFMA_UK",
+                          "SIFMA_US",
+                          "SIX",
+                          "SSE",
+                          "TASE",
+                          "TIO",
+                          "TSX",
+                          "TSXV",
+                          "TTF",
+                          "XAMS",
+                          "XASX",
+                          "XBDA",
+                          "XBKK",
+                          "XBOG",
+                          "XBOM",
+                          "XBRU",
+                          "XBSE",
+                          "XBUD",
+                          "XBUE",
+                          "XCBF",
+                          "XCSE",
+                          "XCYS",
+                          "XDUB",
+                          "XDUS",
+                          "XEEE",
+                          "XETR",
+                          "XFRA",
+                          "XHAM",
+                          "XHEL",
+                          "XHKG",
+                          "XICE",
+                          "XIDX",
+                          "XIST",
+                          "XJPX",
+                          "XJSE",
+                          "XKAR",
+                          "XKLS",
+                          "XKRX",
+                          "XLIM",
+                          "XLIS",
+                          "XLIT",
+                          "XLON",
+                          "XLUX",
+                          "XMAD",
+                          "XMEX",
+                          "XMIL",
+                          "XMOS",
+                          "XNSE",
+                          "XNYS",
+                          "XNZE",
+                          "XOSL",
+                          "XPAR",
+                          "XPHS",
+                          "XPRA",
+                          "XRIS",
+                          "XSAU",
+                          "XSES",
+                          "XSGO",
+                          "XSHG",
+                          "XSTO",
+                          "XSWX",
+                          "XTAE",
+                          "XTAI",
+                          "XTAL",
+                          "XTKS",
+                          "XTSE",
+                          "XWAR",
+                          "XWBO",
+                          "XZAG",
+                          "stock",
+                          "us_futures"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-run-in-apifox": "https://apifox.com/web/project/6759283/apis/api-357976009-run",
+        "security": []
+      }
+    },
+    "/api/stock/news/date": {
+      "get": {
+        "summary": "获取指定日期的新闻",
+        "x-apifox-folder": "stock-http",
+        "x-apifox-status": "developing",
+        "deprecated": false,
+        "description": "",
+        "tags": [
+          "stock-http"
+        ],
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "example": "000001",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "target_date",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "example": "2025-09-10",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "days_before",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "example": "7",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "",
+            "example": "a7f3518b-2983-4d29-bd1d-15a13e470903",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {},
+                  "x-apifox-ignore-properties": [],
+                  "x-apifox-orders": []
+                }
+              }
+            }
+          }
+        },
+        "x-run-in-apifox": "https://apifox.com/web/project/6759283/apis/api-358056303-run",
+        "security": []
+      }
+    }
+  },
+  "components": {
+    "schemas": {},
+    "securitySchemes": {}
+  },
+  "servers": []
+}
