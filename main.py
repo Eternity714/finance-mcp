@@ -80,11 +80,11 @@ async def main():
             mcp = server.create_mcp_server()
             mcp_task = asyncio.create_task(mcp.run_stdio_async())
         elif args.mcp_mode == "sse":
-            mcp = server.create_mcp_server(port=args.mcp_port)
+            mcp = server.create_mcp_server(port=args.mcp_port, host="0.0.0.0")
             logger.info(f"📡 MCP (SSE) 服务器将在端口 {args.mcp_port} 启动")
             mcp_task = asyncio.create_task(mcp.run_sse_async())
         elif args.mcp_mode == "streamable-http":
-            mcp = server.create_mcp_server(port=args.mcp_port)
+            mcp = server.create_mcp_server(port=args.mcp_port, host="0.0.0.0")
             logger.info(f"📡 MCP (StreamableHTTP) 服务器将在端口 {args.mcp_port} 启动")
             mcp_task = asyncio.create_task(mcp.run_streamable_http_async())
 
