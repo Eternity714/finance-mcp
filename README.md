@@ -41,6 +41,8 @@ docker-compose up -d
 open http://localhost:9998/docs
 ```
 
+> 💡 **查看样例报告**: 想了解 AI 分析能力?查看 [样例报告](docs/sample-reports/) 了解完整的技术分析和基本面报告格式
+
 **🎯 5分钟体验核心功能：**
 ```bash
 # 查询茅台历史价格及AI分析
@@ -148,6 +150,19 @@ NEWS_API_KEY=your_key       # 新闻聚合
 启动服务后访问以下地址查看完整的 Swagger UI 文档：
 - **Swagger UI**: http://localhost:9998/docs
 - **ReDoc**: http://localhost:9998/redoc
+
+### 📋 样例报告
+
+查看完整的 AI 分析报告样例：
+- 📊 **技术分析报告**
+  - [贵州茅台 (600519)](docs/sample-reports/market_report_600519.md) - A股白酒龙头技术分析
+  - [腾讯控股 (0700)](docs/sample-reports/market_report_0700.md) - 港股科技股技术分析
+  - [苹果 (AAPL)](docs/sample-reports/market_report_AAPL.md) - 美股科技巨头技术分析
+- 💼 **基本面分析报告**
+  - [贵州茅台基本面 (600519)](docs/sample-reports/fundamental_report_600519.md) - 财务指标深度分析
+  - [腾讯控股基本面 (0700)](docs/sample-reports/fundamental_report_0700.md) - 港股财务数据分析
+- 📁 **原始数据样例**
+  - [贵州茅台财务数据 (JSON)](docs/sample-reports/fundamental_data_600519.json) - 完整财务数据结构
 
 ---
 
