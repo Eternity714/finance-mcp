@@ -58,6 +58,8 @@ class Settings:
         # Tushare配置
         self.TUSHARE_TOKEN: Optional[str] = os.getenv("TUSHARE_TOKEN")
 
+        self.TdxHq_API: Optional[str] = os.getenv("TDXHQ_API")
+
         # 新闻API配置
         self.finnhub_api_key: Optional[str] = os.getenv("FINNHUB_API_KEY")
         self.alpha_vantage_api_key: Optional[str] = os.getenv("ALPHA_VANTAGE_API_KEY")

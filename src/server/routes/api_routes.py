@@ -33,11 +33,11 @@ async def get_stock_price_data(symbol: str, start_date: str, end_date: str):
             raise HTTPException(status_code=400, detail="缺少日期参数")
 
         # 使用市场数据服务
-        from ..services.market_service import MarketDataService
+        from ..services.market_service import get_market_service
 
-        market_service = MarketDataService()
+        market_service = get_market_service()
 
-        report = market_service.generate_stock_report(symbol, start_date, end_date)
+        report = market_service.generate_market_report(symbol, start_date, end_date)
 
         return success_response(data=report, message="成功获取股票价格数据和分析报告")
 
@@ -54,11 +54,11 @@ async def get_financial_report(symbol: str):
             raise HTTPException(status_code=400, detail="缺少股票代码")
 
         # 使用基本面分析服务
-        from ..services.fundamentals_service import FundamentalsAnalysisService
+        from ..services.fundamentals_service import get_fundamentals_service
 
-        fundamentals_service = FundamentalsAnalysisService()
+        fundamentals_service = get_fundamentals_service()
 
-        report = fundamentals_service.generate_fundamentals_report(symbol)
+        report = fundamentals_service.generate_fundamental_report(symbol)
 
         return success_response(data=report, message="成功获取基本面财务报告")
 

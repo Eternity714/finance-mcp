@@ -1,6 +1,6 @@
 """
 YFinance 数据服务
-封装 yfinance 库，提供统一的接口获取全球市场数据。
+封装 yfinance 库，提供统一的接口获取全球市场（特别是美股和港股）数据。
 """
 
 import pandas as pd
@@ -39,6 +39,12 @@ class YFinanceService:
         self.connected = True
         logger.info("✅ YFinanceService 初始化成功")
 
+    def _get_ticker(self, symbol: str) -> "yf.Ticker":
+        """获取 yfinance Ticker 对象"""
+        if not self.connected:
+            raise ConnectionError("YFinanceService 未连接")
+        return yf.Ticker(symbol)
+
     def get_stock_daily(
         self, symbol: str, start_date: str, end_date: str
     ) -> Optional[pd.DataFrame]:
@@ -53,12 +59,9 @@ class YFinanceService:
         Returns:
             包含日线数据的 DataFrame，失败则返回 None。
         """
-        if not self.connected:
-            raise ConnectionError("YFinanceService 未连接")
-
         try:
             logger.info(f"🌍 [yfinance] 正在获取 {symbol} 的日线数据...")
-            ticker = yf.Ticker(symbol)
+            ticker = self._get_ticker(symbol)
             data = ticker.history(start=start_date, end=end_date, proxy=self.proxy)
 
             if data.empty:
@@ -98,12 +101,9 @@ class YFinanceService:
         Returns:
             包含基本面数据的字典，失败则返回 None。
         """
-        if not self.connected:
-            raise ConnectionError("YFinanceService 未连接")
-
         try:
             logger.info(f"🌍 [yfinance] 正在获取 {symbol} 的基本面数据...")
-            ticker = yf.Ticker(symbol)
+            ticker = self._get_ticker(symbol)
             info = ticker.get_info(proxy=self.proxy)
 
             if not info or "symbol" not in info:
@@ -122,3 +122,84 @@ class YFinanceService:
         获取股票的基本信息 (get_fundamentals 的别名，用于接口统一)。
         """
         return self.get_fundamentals(symbol)
+
+    def get_income_statement(self, symbol: str) -> Optional[pd.DataFrame]:
+        """
+        获取公司的损益表。
+
+        Args:
+            symbol: 股票代码 (yfinance 格式)
+
+        Returns:
+            包含损益表数据的 DataFrame，失败则引发异常。
+        """
+        try:
+            logger.info(f"🌍 [yfinance] 正在获取 {symbol} 的损益表...")
+            ticker = self._get_ticker(symbol)
+            income_stmt = ticker.financials
+            if income_stmt.empty:
+                logger.warning(f"⚠️ [yfinance] 未返回 {symbol} 的损益表数据")
+                return None
+            logger.info(f"✅ [yfinance] 成功获取 {symbol} 的损益表")
+            return income_stmt
+        except Exception as e:
+            logger.error(f"❌ [yfinance] 获取 {symbol} 损益表失败: {e}")
+            raise
+
+    def get_balance_sheet(self, symbol: str) -> Optional[pd.DataFrame]:
+        """
+        获取公司的资产负债表。
+
+        Args:
+            symbol: 股票代码 (yfinance 格式)
+
+        Returns:
+            包含资产负债表数据的 DataFrame，失败则引发异常。
+        """
+        try:
+            logger.info(f"🌍 [yfinance] 正在获取 {symbol} 的资产负债表...")
+            ticker = self._get_ticker(symbol)
+            balance_sheet = ticker.balance_sheet
+            if balance_sheet.empty:
+                logger.warning(f"⚠️ [yfinance] 未返回 {symbol} 的资产负债表数据")
+                return None
+            logger.info(f"✅ [yfinance] 成功获取 {symbol} 的资产负债表")
+            return balance_sheet
+        except Exception as e:
+            logger.error(f"❌ [yfinance] 获取 {symbol} 资产负债表失败: {e}")
+            raise
+
+    def get_cash_flow(self, symbol: str) -> Optional[pd.DataFrame]:
+        """
+        获取公司的现金流量表。
+
+        Args:
+            symbol: 股票代码 (yfinance 格式)
+
+        Returns:
+            包含现金流量表数据的 DataFrame，失败则引发异常。
+        """
+        try:
+            logger.info(f"🌍 [yfinance] 正在获取 {symbol} 的现金流量表...")
+            ticker = self._get_ticker(symbol)
+            cash_flow = ticker.cashflow
+            if cash_flow.empty:
+                logger.warning(f"⚠️ [yfinance] 未返回 {symbol} 的现金流量表数据")
+                return None
+            logger.info(f"✅ [yfinance] 成功获取 {symbol} 的现金流量表")
+            return cash_flow
+        except Exception as e:
+            logger.error(f"❌ [yfinance] 获取 {symbol} 现金流量表失败: {e}")
+            raise
+
+    def get_dividends(self, symbol: str) -> Optional[pd.DataFrame]:
+        """获取历史股息数据"""
+        try:
+            logger.info(f"🌍 [yfinance] 正在获取 {symbol} 的股息数据...")
+            ticker = self._get_ticker(symbol)
+            dividends = ticker.dividends
+            logger.info(f"✅ [yfinance] 成功获取 {symbol} 的股息数据")
+            return dividends
+        except Exception as e:
+            logger.error(f"❌ [yfinance] 获取 {symbol} 股息数据失败: {e}")
+            raise

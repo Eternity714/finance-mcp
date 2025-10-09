@@ -1,1086 +1,646 @@
-# app/api/tushare_service.py
+"""
+Tushare 数据服务 - 优化版本
+基于参考文件 cankao/tushare_utils.py 的经过验证的API实现
+"""
+
 import pandas as pd
-import tushare as ts
-from typing import Dict, Optional
+import numpy as np
+from typing import Dict, Optional, Any
 from datetime import datetime, timedelta
+import logging
+import warnings
 
-# 假设自定义异常在 app/utils/exception.py 中
-# 如果不在，请确保从正确的位置导入
 try:
-    from ..utils import DataNotFoundError
-except (ImportError, ModuleNotFoundError):
-    # Fallback for local testing or different structure
-    class DataNotFoundError(Exception):
-        """当API调用成功但未返回任何数据时引发的自定义异常。"""
+    import tushare as ts
+except ImportError:
+    ts = None
 
-        pass
-
-
-# 注意：这里的导入路径可能需要根据你的项目结构调整
 from ...config.settings import get_settings
-from ..utils.stockUtils import StockUtils
+from ..utils.symbol_processor import get_symbol_processor
+from ..exception.exception import DataNotFoundError
+
+logger = logging.getLogger("tushare_service")
+warnings.filterwarnings("ignore")
 
 
 class TushareService:
-    """
-    封装Tushare API的数据服务。
-    所有方法在失败时都会抛出异常。
-    """
+    """封装Tushare API的数据服务（经过验证优化的版本）"""
 
     def __init__(self):
+        """初始化Tushare服务"""
         settings = get_settings()
+
         if not settings.TUSHARE_TOKEN:
-            raise ValueError("TUSHARE_TOKEN 未在环境变量或 .env 文件中设置")
+            self.connected = False
+            logger.error("❌ 未配置TUSHARE_TOKEN，请设置环境变量")
+            raise ValueError("未配置TUSHARE_TOKEN")
+
+        if ts is None:
+            self.connected = False
+            logger.error("❌ Tushare库未安装，请执行: pip install tushare")
+            raise ImportError("tushare 未安装")
 
         try:
             ts.set_token(settings.TUSHARE_TOKEN)
             self.pro = ts.pro_api()
-            # Test connection
-            self.pro.query("trade_cal", start_date="20240101", end_date="20240101")
-            print("✅ Tushare API 连接成功")
+            self.symbol_processor = get_symbol_processor()
+            self.connected = True
+            logger.info("✅ Tushare API连接成功")
         except Exception as e:
-            print(f"❌ Tushare API 连接失败: {e}")
-            self.pro = None
-            # 初始化失败时直接抛出错误
-            raise ConnectionError(f"Tushare API 连接失败: {e}") from e
+            self.connected = False
+            logger.error(f"❌ Tushare API连接失败: {e}")
+            raise ConnectionError(f"Tushare 连接失败: {e}") from e
+
+    # ==================== A股数据接口 ====================
+
+    def get_stock_daily(
+        self, symbol: str, start_date: str, end_date: str
+    ) -> pd.DataFrame:
+        """获取A股日线行情（带前复权价格计算）"""
+        if not self.pro:
+            raise ConnectionError("Tushare未连接")
+
+        try:
+            # 标准化股票代码
+            ts_code = self.symbol_processor.get_tushare_format(symbol)
+
+            # 设置默认日期
+            if end_date is None:
+                end_date = datetime.now().strftime("%Y%m%d")
+            else:
+                end_date = end_date.replace("-", "")
+
+            if start_date is None:
+                start_date = (datetime.now() - timedelta(days=365)).strftime("%Y%m%d")
+            else:
+                start_date = start_date.replace("-", "")
+
+            logger.info(f"🔄 Tushare获取{ts_code}数据 ({start_date} 到 {end_date})")
+
+            # 获取日线数据
+            data = self.pro.daily(
+                ts_code=ts_code, start_date=start_date, end_date=end_date
+            )
+
+            if data is None or data.empty:
+                logger.warning(f"⚠️ Tushare返回空数据: {ts_code}")
+                raise DataNotFoundError(f"未获取到 {ts_code} 的日线数据")
+
+            # 数据预处理
+            data = data.sort_values("trade_date")
+            data["trade_date"] = pd.to_datetime(data["trade_date"])
+
+            # 计算前复权价格（基于pct_chg重新计算连续价格）
+            data = self._calculate_forward_adjusted_prices(data)
+
+            # 标准化数据格式
+            data = self._standardize_data(data)
+
+            logger.info(f"✅ 获取{ts_code}数据成功: {len(data)}条")
+            return data
+
+        except Exception as e:
+            logger.error(f"❌ 获取{symbol}数据失败: {e}")
+            raise
+
+    def _calculate_forward_adjusted_prices(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        基于pct_chg计算前复权价格
+
+        Tushare的daily接口返回除权价格，在除权日会出现价格跳跃。
+        使用pct_chg（涨跌幅）重新计算连续的前复权价格，确保价格序列的连续性。
+        """
+        if data.empty or "pct_chg" not in data.columns:
+            logger.warning("⚠️ 数据为空或缺少pct_chg列，无法计算前复权价格")
+            return data
+
+        try:
+            # 复制数据避免修改原始数据
+            adjusted_data = data.copy()
+            adjusted_data = adjusted_data.sort_values("trade_date").reset_index(
+                drop=True
+            )
+
+            # 保存原始价格列
+            adjusted_data["close_raw"] = adjusted_data["close"].copy()
+            adjusted_data["open_raw"] = adjusted_data["open"].copy()
+            adjusted_data["high_raw"] = adjusted_data["high"].copy()
+            adjusted_data["low_raw"] = adjusted_data["low"].copy()
+
+            # 从最新的收盘价开始，向前计算前复权价格
+            latest_close = float(adjusted_data.iloc[-1]["close"])
+
+            # 计算前复权收盘价
+            adjusted_closes = [latest_close]
+
+            # 从倒数第二天开始向前计算
+            for i in range(len(adjusted_data) - 2, -1, -1):
+                pct_change = float(adjusted_data.iloc[i + 1]["pct_chg"]) / 100.0
+
+                # 前一天的前复权收盘价 = 今天的前复权收盘价 / (1 + 今天的涨跌幅)
+                prev_close = adjusted_closes[0] / (1 + pct_change)
+                adjusted_closes.insert(0, prev_close)
+
+            # 更新收盘价
+            adjusted_data["close"] = adjusted_closes
+
+            # 计算其他价格的调整比例
+            for i in range(len(adjusted_data)):
+                if adjusted_data.iloc[i]["close_raw"] != 0:
+                    # 计算调整比例
+                    adjustment_ratio = (
+                        adjusted_data.iloc[i]["close"]
+                        / adjusted_data.iloc[i]["close_raw"]
+                    )
+
+                    # 应用调整比例到其他价格
+                    adjusted_data.iloc[i, adjusted_data.columns.get_loc("open")] = (
+                        adjusted_data.iloc[i]["open_raw"] * adjustment_ratio
+                    )
+                    adjusted_data.iloc[i, adjusted_data.columns.get_loc("high")] = (
+                        adjusted_data.iloc[i]["high_raw"] * adjustment_ratio
+                    )
+                    adjusted_data.iloc[i, adjusted_data.columns.get_loc("low")] = (
+                        adjusted_data.iloc[i]["low_raw"] * adjustment_ratio
+                    )
+
+            # 添加标记
+            adjusted_data["price_type"] = "forward_adjusted"
+
+            logger.info(f"✅ 前复权价格计算完成，数据条数: {len(adjusted_data)}")
+            return adjusted_data
+
+        except Exception as e:
+            logger.error(f"❌ 前复权价格计算失败: {e}")
+            return data
 
     def _standardize_data(self, data: pd.DataFrame) -> pd.DataFrame:
+        """标准化A股数据格式"""
         if data.empty:
             return data
+
         try:
-            standardized = data.copy()
+            # 重命名列
             column_mapping = {
                 "trade_date": "date",
                 "ts_code": "code",
-                "open": "open",
-                "high": "high",
-                "low": "low",
-                "close": "close",
                 "vol": "volume",
-                "amount": "amount",
-                "pct_chg": "pct_change",
-                "change": "change",
+                "amount": "turnover",
             }
-            standardized = standardized.rename(columns=column_mapping)
-            if "date" in standardized.columns:
-                standardized["date"] = pd.to_datetime(standardized["date"])
-                standardized = standardized.sort_values("date", ascending=True)
-            if "code" in standardized.columns:
-                standardized["股票代码"] = standardized["code"].str.replace(
-                    r"\.SH|\.SZ|\.BJ", "", regex=True
-                )
-            if "pct_change" in standardized.columns:
-                standardized["涨跌幅"] = standardized["pct_change"]
-            return standardized
-        except Exception as e:
-            print(f"⚠️ 数据标准化失败: {e}")
+
+            for old_col, new_col in column_mapping.items():
+                if old_col in data.columns:
+                    data = data.rename(columns={old_col: new_col})
+
+            # 确保日期格式
+            if "date" in data.columns:
+                data["date"] = pd.to_datetime(data["date"])
+
+            # 计算涨跌幅（如果没有）
+            if "pct_chg" not in data.columns and "close" in data.columns:
+                data = data.sort_values("date")
+                data["pct_chg"] = data["close"].pct_change() * 100
+
             return data
+
+        except Exception as e:
+            logger.error(f"❌ 标准化数据失败: {e}")
+            return data
+
+    def get_stock_info(self, symbol: str) -> Dict[str, Any]:
+        """获取股票基本信息"""
+        if not self.pro:
+            raise ConnectionError("Tushare未连接")
+
+        try:
+            ts_code = self.symbol_processor.get_tushare_format(symbol)
+
+            basic_info = self.pro.stock_basic(
+                ts_code=ts_code,
+                fields="ts_code,symbol,name,area,industry,market,list_date",
+            )
+
+            if basic_info is None or basic_info.empty:
+                raise DataNotFoundError(f"未找到 {ts_code} 的股票信息")
+
+            info = basic_info.iloc[0]
+            return {
+                "symbol": symbol,
+                "ts_code": info["ts_code"],
+                "name": info["name"],
+                "area": info.get("area", ""),
+                "industry": info.get("industry", ""),
+                "market": info.get("market", ""),
+                "list_date": info.get("list_date", ""),
+                "source": "tushare",
+            }
+
+        except Exception as e:
+            logger.error(f"❌ 获取{symbol}股票信息失败: {e}")
+            raise
+
+    # ==================== 港股数据接口 ====================
+
+    def get_hk_daily(self, symbol: str, start_date: str, end_date: str) -> pd.DataFrame:
+        """获取港股日线行情"""
+        if not self.pro:
+            raise ConnectionError("Tushare未连接")
+
+        try:
+            # 标准化港股代码
+            ts_code = self.symbol_processor.get_tushare_format(symbol)
+
+            # 格式化日期
+            start_date_formatted = start_date.replace("-", "") if start_date else None
+            end_date_formatted = end_date.replace("-", "") if end_date else None
+
+            logger.info(
+                f"🇭🇰 Tushare获取港股数据: {ts_code} ({start_date} ~ {end_date})"
+            )
+
+            # 获取港股日线数据
+            data = self.pro.hk_daily(
+                ts_code=ts_code,
+                start_date=start_date_formatted,
+                end_date=end_date_formatted,
+            )
+
+            if data is None or data.empty:
+                logger.warning(f"⚠️ Tushare返回空港股数据: {ts_code}")
+                raise DataNotFoundError(f"未获取到港股 {ts_code} 的日线数据")
+
+            # 标准化数据
+            data = self._standardize_hk_data(data)
+
+            logger.info(f"✅ 获取港股{ts_code}数据成功: {len(data)}条")
+            return data
+
+        except Exception as e:
+            logger.error(f"❌ 获取港股{symbol}数据失败: {e}")
+            raise
 
     def _standardize_hk_data(self, data: pd.DataFrame) -> pd.DataFrame:
         """标准化港股数据格式"""
         if data.empty:
             return data
+
         try:
-            standardized = data.copy()
-            # 港股数据列映射
+            # 重命名列
             column_mapping = {
                 "trade_date": "date",
                 "ts_code": "code",
-                "open": "open",
-                "high": "high",
-                "low": "low",
-                "close": "close",
                 "vol": "volume",
-                "amount": "amount",
-                "pct_chg": "pct_change",
-                "change": "change",
-                "pre_close": "pre_close",
+                "amount": "turnover",
             }
-            standardized = standardized.rename(columns=column_mapping)
 
-            if "date" in standardized.columns:
-                standardized["date"] = pd.to_datetime(standardized["date"])
-                standardized = standardized.sort_values("date", ascending=True)
-            if "code" in standardized.columns:
-                standardized["股票代码"] = standardized["code"].str.replace(
-                    r"\.HK", "", regex=True
-                )
-            if "pct_change" in standardized.columns:
-                standardized["涨跌幅"] = standardized["pct_change"]
+            for old_col, new_col in column_mapping.items():
+                if old_col in data.columns:
+                    data = data.rename(columns={old_col: new_col})
 
-            # 添加数据源标识
-            standardized["source"] = "tushare_hk"
+            # 确保日期格式
+            if "date" in data.columns:
+                data["date"] = pd.to_datetime(data["date"])
 
-            return standardized
-        except Exception as e:
-            print(f"⚠️ 港股数据标准化失败: {e}")
             return data
 
-    def get_stock_daily(
-        self, symbol: str, start_date: str, end_date: str
-    ) -> pd.DataFrame:
-        """获取日线行情。如果无数据或API出错则抛出异常。"""
-        if not self.pro:
-            raise ConnectionError("Tushare服务未初始化或连接失败。")
-
-        try:
-            ts_code = symbol  # 直接使用已经标准化的代码
-            df = self.pro.daily(
-                ts_code=ts_code,
-                start_date=start_date.replace("-", ""),
-                end_date=end_date.replace("-", ""),
-            )
-            if df is None or df.empty:
-                raise DataNotFoundError(
-                    f"未找到 {ts_code} 在 {start_date} 到 {end_date} 期间的日线数据。"
-                )
-
-            df = self._standardize_data(df)
-            print(f"✅ 获取并标准化 {ts_code} 数据成功: {len(df)} 条")
-            return df
         except Exception as e:
-            print(f"❌ 获取 {ts_code} 日线数据时发生错误: {e}")
-            # 重新抛出，让上层处理
-            raise
+            logger.error(f"❌ 标准化港股数据失败: {e}")
+            return data
 
-    def get_hk_daily(self, symbol: str, start_date: str, end_date: str) -> pd.DataFrame:
+    # ==================== 财务数据接口 ====================
+
+    def get_china_fundamentals(self, symbol: str, period: str = None) -> Dict[str, Any]:
         """
-        获取港股日线行情数据
+        获取A股核心财务数据
 
         Args:
-            symbol: 港股代码 (如: 00700.HK 或 700)
-            start_date: 开始日期 (格式: YYYY-MM-DD)
-            end_date: 结束日期 (格式: YYYY-MM-DD)
+            symbol: 股票代码
+            period: 报告期(YYYYMMDD格式,如20231231表示年报,20230630半年报,20230930三季报)
 
         Returns:
-            pd.DataFrame: 港股日线数据
+            Dict包含:
+            - basic_info: 股票基本信息
+            - balance_sheet: 资产负债表
+            - income_statement: 利润表
+            - cash_flow: 现金流量表
+            - fina_indicator: 财务指标
+            - financial_data: 整合后的核心财务数据
         """
         if not self.pro:
-            raise ConnectionError("Tushare服务未初始化或连接失败。")
-
-        try:
-            ts_code = symbol  # 直接使用已经标准化的代码
-            df = self.pro.hk_daily(
-                ts_code=ts_code,
-                start_date=start_date.replace("-", ""),
-                end_date=end_date.replace("-", ""),
-            )
-            if df is None or df.empty:
-                raise DataNotFoundError(
-                    f"未找到 {ts_code} 在 {start_date} 到 {end_date} 期间的港股日线数据。"
-                )
-
-            df = self._standardize_hk_data(df)
-            print(f"✅ 获取并标准化港股 {ts_code} 数据成功: {len(df)} 条")
-            return df
-        except Exception as e:
-            print(f"❌ 获取港股 {ts_code} 日线数据时发生错误: {e}")
-            raise
-
-    def get_hk_rt_daily(self, symbol: str) -> pd.DataFrame:
-        """
-        获取港股实时日K线数据
-
-        Args:
-            symbol: 港股代码 (如: 00700.HK 或 700)
-
-        Returns:
-            pd.DataFrame: 港股实时日K线数据
-        """
-        if not self.pro:
-            raise ConnectionError("Tushare服务未初始化或连接失败。")
-
-        try:
-            ts_code = symbol  # 直接使用已经标准化的代码
-            df = self.pro.rt_hk_k(ts_code=ts_code)
-            if df is None or df.empty:
-                raise DataNotFoundError(f"未找到 {ts_code} 的港股实时日K线数据。")
-
-            print(f"✅ 获取港股实时日K线 {ts_code} 数据成功: {len(df)} 条")
-            return df
-        except Exception as e:
-            print(f"❌ 获取港股实时日K线 {ts_code} 数据时发生错误: {e}")
-            raise
-
-    def get_hk_mins(
-        self,
-        symbol: str,
-        freq: str = "1min",
-        start_date: str = None,
-        end_date: str = None,
-    ) -> pd.DataFrame:
-        """
-        获取港股分钟行情数据
-
-        Args:
-            symbol: 港股代码 (如: 00700.HK 或 700)
-            freq: 分钟频度 (1min/5min/15min/30min/60min)
-            start_date: 开始时间 (格式: YYYY-MM-DD HH:MM:SS)
-            end_date: 结束时间 (格式: YYYY-MM-DD HH:MM:SS)
-
-        Returns:
-            pd.DataFrame: 港股分钟数据
-        """
-        if not self.pro:
-            raise ConnectionError("Tushare服务未初始化或连接失败。")
-
-        try:
-            ts_code = symbol  # 直接使用已经标准化的代码
-            params = {"ts_code": ts_code, "freq": freq}
-            if start_date:
-                params["start_date"] = start_date
-            if end_date:
-                params["end_date"] = end_date
-
-            df = self.pro.hk_mins(**params)
-            if df is None or df.empty:
-                raise DataNotFoundError(f"未找到 {ts_code} 的港股分钟数据。")
-
-            print(f"✅ 获取港股分钟数据 {ts_code} ({freq}) 成功: {len(df)} 条")
-            return df
-        except Exception as e:
-            print(f"❌ 获取港股分钟数据 {ts_code} 时发生错误: {e}")
-            raise
-
-    def get_hk_income(
-        self,
-        symbol: str,
-        period: str = None,
-        ind_name: str = None,
-        start_date: str = None,
-        end_date: str = None,
-    ) -> pd.DataFrame:
-        """
-        获取港股利润表数据
-
-        Args:
-            symbol: 港股代码 (如: 00700.HK 或 700)
-            period: 报告期 (格式: YYYYMMDD)
-            ind_name: 指标名 (如: 营业额)
-            start_date: 报告期开始日期 (格式: YYYYMMDD)
-            end_date: 报告期结束日期 (格式: YYYYMMDD)
-
-        Returns:
-            pd.DataFrame: 港股利润表数据
-        """
-        if not self.pro:
-            raise ConnectionError("Tushare服务未初始化或连接失败。")
-
-        try:
-            ts_code = symbol  # 直接使用已经标准化的代码
-            params = {"ts_code": ts_code}
-            if period:
-                params["period"] = period
-            if ind_name:
-                params["ind_name"] = ind_name
-            if start_date:
-                params["start_date"] = start_date
-            if end_date:
-                params["end_date"] = end_date
-
-            df = self.pro.hk_income(**params)
-            if df is None or df.empty:
-                raise DataNotFoundError(f"未找到 {ts_code} 的港股利润表数据。")
-
-            print(f"✅ 获取港股利润表 {ts_code} 数据成功: {len(df)} 条")
-            return df
-        except Exception as e:
-            print(f"❌ 获取港股利润表 {ts_code} 数据时发生错误: {e}")
-            raise
-
-    def get_hk_balancesheet(
-        self,
-        symbol: str,
-        period: str = None,
-        ind_name: str = None,
-        start_date: str = None,
-        end_date: str = None,
-    ) -> pd.DataFrame:
-        """
-        获取港股资产负债表数据
-
-        Args:
-            symbol: 港股代码 (如: 00700.HK 或 700)
-            period: 报告期 (格式: YYYYMMDD)
-            ind_name: 指标名 (如: 应收帐款)
-            start_date: 报告期开始日期 (格式: YYYYMMDD)
-            end_date: 报告期结束日期 (格式: YYYYMMDD)
-
-        Returns:
-            pd.DataFrame: 港股资产负债表数据
-        """
-        if not self.pro:
-            raise ConnectionError("Tushare服务未初始化或连接失败。")
-
-        try:
-            ts_code = symbol  # 直接使用已经标准化的代码
-            params = {"ts_code": ts_code}
-            if period:
-                params["period"] = period
-            if ind_name:
-                params["ind_name"] = ind_name
-            if start_date:
-                params["start_date"] = start_date
-            if end_date:
-                params["end_date"] = end_date
-
-            df = self.pro.hk_balancesheet(**params)
-            if df is None or df.empty:
-                raise DataNotFoundError(f"未找到 {ts_code} 的港股资产负债表数据。")
-
-            print(f"✅ 获取港股资产负债表 {ts_code} 数据成功: {len(df)} 条")
-            return df
-        except Exception as e:
-            print(f"❌ 获取港股资产负债表 {ts_code} 数据时发生错误: {e}")
-            raise
-
-    def get_hk_cashflow(
-        self,
-        symbol: str,
-        period: str = None,
-        ind_name: str = None,
-        start_date: str = None,
-        end_date: str = None,
-    ) -> pd.DataFrame:
-        """
-        获取港股现金流量表数据
-
-        Args:
-            symbol: 港股代码 (如: 00700.HK 或 700)
-            period: 报告期 (格式: YYYYMMDD)
-            ind_name: 指标名 (如: 新增贷款)
-            start_date: 报告期开始日期 (格式: YYYYMMDD)
-            end_date: 报告期结束日期 (格式: YYYYMMDD)
-
-        Returns:
-            pd.DataFrame: 港股现金流量表数据
-        """
-        if not self.pro:
-            raise ConnectionError("Tushare服务未初始化或连接失败。")
-
-        try:
-            ts_code = symbol  # 直接使用已经标准化的代码
-            params = {"ts_code": ts_code}
-            if period:
-                params["period"] = period
-            if ind_name:
-                params["ind_name"] = ind_name
-            if start_date:
-                params["start_date"] = start_date
-            if end_date:
-                params["end_date"] = end_date
-
-            df = self.pro.hk_cashflow(**params)
-            if df is None or df.empty:
-                raise DataNotFoundError(f"未找到 {ts_code} 的港股现金流量表数据。")
-
-            print(f"✅ 获取港股现金流量表 {ts_code} 数据成功: {len(df)} 条")
-            return df
-        except Exception as e:
-            print(f"❌ 获取港股现金流量表 {ts_code} 数据时发生错误: {e}")
-            raise
-
-    def get_hk_fina_indicator(
-        self,
-        symbol: str,
-        period: str = None,
-        report_type: str = None,
-        start_date: str = None,
-        end_date: str = None,
-    ) -> pd.DataFrame:
-        """
-        获取港股财务指标数据
-
-        Args:
-            symbol: 港股代码 (如: 00700.HK 或 700)
-            period: 报告期 (格式: YYYYMMDD)
-            report_type: 报告类型 (Q1/Q2/Q3/Q4)
-            start_date: 报告期开始日期 (格式: YYYYMMDD)
-            end_date: 报告期结束日期 (格式: YYYYMMDD)
-
-        Returns:
-            pd.DataFrame: 港股财务指标数据
-        """
-        if not self.pro:
-            raise ConnectionError("Tushare服务未初始化或连接失败。")
-
-        try:
-            ts_code = symbol  # 直接使用已经标准化的代码
-            params = {"ts_code": ts_code}
-            if period:
-                params["period"] = period
-            if report_type:
-                params["report_type"] = report_type
-            if start_date:
-                params["start_date"] = start_date
-            if end_date:
-                params["end_date"] = end_date
-
-            df = self.pro.hk_fina_indicator(**params)
-            if df is None or df.empty:
-                raise DataNotFoundError(f"未找到 {ts_code} 的港股财务指标数据。")
-
-            print(f"✅ 获取港股财务指标 {ts_code} 数据成功: {len(df)} 条")
-            return df
-        except Exception as e:
-            print(f"❌ 获取港股财务指标 {ts_code} 数据时发生错误: {e}")
-            raise
-
-    def get_hk_fundamentals(self, symbol: str, period: str = None) -> Dict:
-        """
-        获取港股核心财务数据（降级处理：使用复权行情数据）
-
-        Args:
-            symbol: 港股代码 (如: 00700.HK 或 700)
-            period: 报告期 (格式: YYYYMMDD，当前版本暂未使用)
-
-        Returns:
-            Dict: 包含基础市值、股本等数据的港股信息
-        """
-        if not self.pro:
-            raise ConnectionError("Tushare服务未初始化或连接失败。")
-
-        try:
-            ts_code = symbol  # 直接使用已经标准化的代码
-            print(f"⚠️ 港股财务报表API不可用，使用复权行情数据降级处理: {ts_code}")
-
-            # 使用复权行情数据作为基本面数据的替代
-            basic_data = self.get_hk_basic_fundamentals(symbol)
-
-            if not basic_data:
-                raise DataNotFoundError(f"未找到 {ts_code} 的任何港股基础数据")
-
-            # 将复权行情数据转换为基本面数据格式
-            return {
-                "security_profile": {
-                    "证券代码": ts_code,
-                    "证券简称": basic_data.get("name", f"港股{symbol}"),
-                    "上市日期": basic_data.get("list_date", ""),
-                },
-                "company_profile": {
-                    "公司名称": basic_data.get("name", f"港股{symbol}"),
-                    "所属行业": basic_data.get("industry", ""),
-                },
-                "market_data": {
-                    "latest_price": basic_data.get("latest_price", 0),
-                    "total_market_cap": basic_data.get("total_market_cap", 0),
-                    "free_market_cap": basic_data.get("free_market_cap", 0),
-                    "total_shares": basic_data.get("total_shares", 0),
-                    "free_shares": basic_data.get("free_shares", 0),
-                    "turnover_ratio": basic_data.get("turnover_ratio", 0),
-                    "pct_change": basic_data.get("pct_change", 0),
-                    "volume": basic_data.get("volume", 0),
-                    "amount": basic_data.get("amount", 0),
-                },
-                # 财务报表数据为空（API不可用）
-                "income_statement": [],
-                "balance_sheet": [],
-                "cash_flow": [],
-            }
-
-        except Exception as e:
-            print(f"❌ 获取港股 {ts_code} 财务数据时发生错误: {e}")
-            raise
-
-    def get_hk_stock_data_report(
-        self, symbol: str, start_date: str, end_date: str
-    ) -> str:
-        """
-        生成港股价格行情分析报告
-
-        Args:
-            symbol: 港股代码
-            start_date: 开始日期
-            end_date: 结束日期
-
-        Returns:
-            str: 港股分析报告
-        """
-        # 获取港股基本信息和日线数据
-        data = self.get_hk_daily(symbol, start_date, end_date)
-
-        ts_code = symbol  # 直接使用已经标准化的代码
-        # 获取最新数据
-        latest_data = data.iloc[-1]
-        current_price = f"HK${latest_data['close']:.2f}"
-
-        change_pct_str = "N/A"
-        if len(data) > 1:
-            change_pct = latest_data.get("pct_change", 0)
-            change_pct_str = f"{change_pct:+.2f}%"
-
-        volume = latest_data.get("volume", 0)
-        volume_str = (
-            f"{volume / 10000:.1f}万股" if volume > 10000 else f"{volume:.0f}股"
-        )
-
-        report = f"# {ts_code} 港股数据分析\n\n"
-        report += f"## 📊 实时行情\n- 股票代码: {ts_code}\n- 当前价格: {current_price}\n- 涨跌幅: {change_pct_str}\n- 成交量: {volume_str}\n- 数据来源: Tushare港股\n\n"
-        report += f"## 📈 历史数据概览\n- 数据期间: {start_date} 至 {end_date}\n- 数据条数: {len(data)}条\n- 期间最高: HK${data['high'].max():.2f}\n- 期间最低: HK${data['low'].min():.2f}\n\n"
-        report += "## 📋 最新交易数据 (最近5天)\n"
-
-        display_columns = ["date", "open", "high", "low", "close", "volume", "涨跌幅"]
-        existing_columns = [col for col in display_columns if col in data.columns]
-        report += data[existing_columns].tail(5).to_markdown(index=False)
-
-        return report
-
-    def get_stock_info(self, symbol: str) -> Dict:
-        """获取股票基本信息。如果无数据或API出错则抛出异常。"""
-        if not self.pro:
-            raise ConnectionError("Tushare服务未初始化或连接失败。")
-
-        try:
-            ts_code = symbol  # 直接使用已经标准化的代码
-            df = self.pro.stock_basic(
-                ts_code=ts_code, fields="ts_code,symbol,name,area,industry,market"
-            )
-            if df is None or df.empty:
-                raise DataNotFoundError(f"未找到代码为 {ts_code} 的股票基本信息。")
-
-            return df.iloc[0].to_dict()
-        except Exception as e:
-            print(f"❌ 获取 {ts_code} 基本信息时发生错误: {e}")
-            raise
-
-    def get_china_fundamentals(self, symbol: str, period: str = None) -> Dict:
-        """获取A股核心财务数据。如果无数据或API出错则抛出异常。"""
-        if not self.pro:
-            raise ConnectionError("Tushare服务未初始化或连接失败。")
+            raise ConnectionError("Tushare未连接")
 
         if not period:
-            period = "20241231"  # 默认最新年报
+            # 默认使用最近已发布的报告期
+            # 财报通常有延迟：年报4月底，一季报4月底，半年报8月底，三季报10月底
+            # 注意：这里使用2024年作为基准年
+            now = datetime.now()
+            year = 2024  # 当前基准年
+            month = now.month
+
+            # 根据当前月份判断最近可获取的报告期
+            if month <= 4:
+                # 1-4月：上一年年报
+                period = f"{year - 1}1231"
+            elif month <= 8:
+                # 5-8月：当年一季报
+                period = f"{year}0331"
+            elif month <= 10:
+                # 9-10月：当年半年报
+                period = f"{year}0630"
+            else:
+                # 11-12月：当年三季报
+                period = f"{year}0930"
+
+            logger.info(f"📅 自动选择报告期: {period}")
 
         try:
-            ts_code = symbol  # 直接使用已经标准化的代码
-            balance_sheet = self.pro.balancesheet(
-                ts_code=ts_code,
-                period=period,
-                fields="total_assets,total_liab,total_hldr_eqy_exc_min_int",
-            )
-            income = self.pro.income(
-                ts_code=ts_code,
-                period=period,
-                fields="total_revenue,revenue,n_income,operate_profit",
-            )
-            cashflow = self.pro.cashflow(
-                ts_code=ts_code, period=period, fields="n_cashflow_act"
-            )
+            ts_code = self.symbol_processor.get_tushare_format(symbol)
+            logger.info(f"📊 获取{ts_code}财务数据，报告期: {period}")
 
-            if balance_sheet.empty and income.empty and cashflow.empty:
-                raise DataNotFoundError(
-                    f"未找到 {ts_code} 在报告期 {period} 的任何财务报表数据。"
+            fundamentals = {
+                "symbol": symbol,
+                "ts_code": ts_code,
+                "period": period,
+                "source": "tushare",
+            }
+
+            # 获取基本信息
+            try:
+                basic_info = self.get_stock_info(symbol)
+                fundamentals["basic_info"] = basic_info
+            except Exception as e:
+                logger.warning(f"⚠️ 获取股票基本信息失败: {e}")
+                fundamentals["basic_info"] = {}
+
+            # 获取资产负债表 (balancesheet)
+            try:
+                balance_sheet = self.pro.balancesheet(
+                    ts_code=ts_code,
+                    period=period,
+                    fields="ts_code,ann_date,f_ann_date,end_date,report_type,"
+                    "total_assets,total_liab,total_hldr_eqy_exc_min_int,"
+                    "money_cap,accounts_receiv,inventories,fix_assets,"
+                    "lt_borr,st_borr,notes_payable,acct_payable,"
+                    "cap_rese,surplus_rese,undistr_porfit",
+                )
+                if balance_sheet is not None and not balance_sheet.empty:
+                    fundamentals["balance_sheet"] = balance_sheet.iloc[0].to_dict()
+                    logger.info(f"✅ 获取资产负债表成功")
+                else:
+                    logger.warning(f"⚠️ 资产负债表数据为空")
+                    fundamentals["balance_sheet"] = {}
+            except Exception as e:
+                logger.warning(f"⚠️ 获取资产负债表失败: {e}")
+                fundamentals["balance_sheet"] = {}
+
+            # 获取利润表 (income)
+            try:
+                income_statement = self.pro.income(
+                    ts_code=ts_code,
+                    period=period,
+                    fields="ts_code,ann_date,f_ann_date,end_date,report_type,"
+                    "total_revenue,revenue,operate_profit,total_profit,"
+                    "n_income,n_income_attr_p,basic_eps,diluted_eps,"
+                    "total_cogs,sell_exp,admin_exp,fin_exp,"
+                    "oper_cost,rd_exp,ebit,ebitda",
+                )
+                if income_statement is not None and not income_statement.empty:
+                    fundamentals["income_statement"] = income_statement.iloc[
+                        0
+                    ].to_dict()
+                    logger.info(f"✅ 获取利润表成功")
+                else:
+                    logger.warning(f"⚠️ 利润表数据为空")
+                    fundamentals["income_statement"] = {}
+            except Exception as e:
+                logger.warning(f"⚠️ 获取利润表失败: {e}")
+                fundamentals["income_statement"] = {}
+
+            # 获取现金流量表 (cashflow)
+            try:
+                cash_flow = self.pro.cashflow(
+                    ts_code=ts_code,
+                    period=period,
+                    fields="ts_code,ann_date,f_ann_date,end_date,report_type,"
+                    "n_cashflow_act,n_cashflow_inv_act,"
+                    "n_cash_flows_fnc_act,c_fr_sale_sg,c_paid_goods_s,"
+                    "c_paid_to_for_empl,c_paid_for_taxes,net_profit,"
+                    "finan_exp,im_n_incr_cash_equ,free_cashflow",
+                )
+                if cash_flow is not None and not cash_flow.empty:
+                    fundamentals["cash_flow"] = cash_flow.iloc[0].to_dict()
+                    logger.info(f"✅ 获取现金流量表成功")
+                else:
+                    logger.warning(f"⚠️ 现金流量表数据为空")
+                    fundamentals["cash_flow"] = {}
+            except Exception as e:
+                logger.warning(f"⚠️ 获取现金流量表失败: {e}")
+                fundamentals["cash_flow"] = {}
+
+            # 获取财务指标 (fina_indicator)
+            try:
+                fina_indicator = self.pro.fina_indicator(
+                    ts_code=ts_code,
+                    period=period,
+                    fields="ts_code,ann_date,f_ann_date,end_date,"
+                    "eps,dt_eps,roe,roe_waa,roe_dt,roa,bps,ocfps,"
+                    "gross_margin,current_ratio,quick_ratio,"
+                    "debt_to_assets,assets_to_eqt,debt_to_eqt,"
+                    "netprofit_margin,grossprofit_margin,"
+                    "profit_to_gr,or_yoy,q_sales_yoy,netprofit_yoy",
+                )
+                if fina_indicator is not None and not fina_indicator.empty:
+                    fundamentals["fina_indicator"] = fina_indicator.iloc[0].to_dict()
+                    logger.info(f"✅ 获取财务指标成功")
+                else:
+                    logger.warning(f"⚠️ 财务指标数据为空")
+                    fundamentals["fina_indicator"] = {}
+            except Exception as e:
+                logger.warning(f"⚠️ 获取财务指标失败: {e}")
+                fundamentals["fina_indicator"] = {}
+
+            # 整合核心财务数据到 financial_data 字段
+            financial_data = {}
+
+            # 从资产负债表提取数据
+            bs = fundamentals.get("balance_sheet", {})
+            if bs:
+                financial_data.update(
+                    {
+                        "total_assets": bs.get("total_assets"),
+                        "total_liabilities": bs.get("total_liab"),
+                        "total_equity": bs.get("total_hldr_eqy_exc_min_int"),
+                        "cash": bs.get("money_cap"),
+                        "accounts_receivable": bs.get("accounts_receiv"),
+                        "inventory": bs.get("inventories"),
+                        "fixed_assets": bs.get("fix_assets"),
+                        "long_term_debt": bs.get("lt_borr"),
+                        "short_term_debt": bs.get("st_borr"),
+                    }
                 )
 
-            return {
-                "balance_sheet": (
-                    balance_sheet.to_dict("records") if not balance_sheet.empty else []
-                ),
-                "income_statement": (
-                    income.to_dict("records") if not income.empty else []
-                ),
-                "cash_flow": (
-                    cashflow.to_dict("records") if not cashflow.empty else []
-                ),
-            }
+            # 从利润表提取数据
+            income = fundamentals.get("income_statement", {})
+            if income:
+                financial_data.update(
+                    {
+                        "total_revenue": income.get("total_revenue"),
+                        "operating_revenue": income.get("revenue"),
+                        "operating_profit": income.get("operate_profit"),
+                        "total_profit": income.get("total_profit"),
+                        "net_income": income.get("n_income"),
+                        "net_income_parent": income.get("n_income_attr_p"),
+                        "eps": income.get("basic_eps"),
+                        "diluted_eps": income.get("diluted_eps"),
+                        "operating_cost": income.get("oper_cost"),
+                        "selling_expense": income.get("sell_exp"),
+                        "admin_expense": income.get("admin_exp"),
+                        "financial_expense": income.get("fin_exp"),
+                        "rd_expense": income.get("rd_exp"),
+                        "ebit": income.get("ebit"),
+                        "ebitda": income.get("ebitda"),
+                    }
+                )
+
+            # 从现金流量表提取数据
+            cf = fundamentals.get("cash_flow", {})
+            if cf:
+                financial_data.update(
+                    {
+                        "operating_cash_flow": cf.get("n_cashflow_act"),
+                        "investing_cash_flow": cf.get("n_cashflow_inv_act"),
+                        "financing_cash_flow": cf.get("n_cash_flows_fnc_act"),
+                        "free_cash_flow": cf.get("free_cashflow"),
+                    }
+                )
+
+            # 从财务指标提取数据
+            fi = fundamentals.get("fina_indicator", {})
+            if fi:
+                financial_data.update(
+                    {
+                        "roe": fi.get("roe"),
+                        "roe_weighted": fi.get("roe_waa"),
+                        "roa": fi.get("roa"),
+                        "bps": fi.get("bps"),
+                        "ocfps": fi.get("ocfps"),
+                        "gross_margin": fi.get(
+                            "grossprofit_margin"
+                        ),  # 使用grossprofit_margin而不是gross_margin
+                        "net_margin": fi.get("netprofit_margin"),
+                        "current_ratio": fi.get("current_ratio"),
+                        "quick_ratio": fi.get("quick_ratio"),
+                        "debt_to_assets": fi.get("debt_to_assets"),
+                        "debt_to_equity": fi.get("debt_to_eqt"),
+                        "revenue_growth_yoy": fi.get("or_yoy"),
+                        "profit_growth_yoy": fi.get("netprofit_yoy"),
+                    }
+                )
+
+            fundamentals["financial_data"] = financial_data
+
+            # 检查是否成功获取任何数据
+            has_data = any(
+                [
+                    fundamentals.get("balance_sheet"),
+                    fundamentals.get("income_statement"),
+                    fundamentals.get("cash_flow"),
+                    fundamentals.get("fina_indicator"),
+                ]
+            )
+
+            if not has_data:
+                logger.warning(f"⚠️ 未获取到{symbol}的任何财务数据")
+            else:
+                logger.info(f"✅ 成功获取{symbol}财务数据")
+
+            return fundamentals
+
         except Exception as e:
-            print(f"❌ 获取 {ts_code} 财务数据时发生错误: {e}")
+            logger.error(f"❌ 获取{symbol}财务数据失败: {e}")
             raise
 
-    def get_income_statement(
-        self, ts_code: str, start_date: str, end_date: str
-    ) -> pd.DataFrame:
-        """获取利润表数据，按公告日期/报告期倒序返回最近记录"""
-        if not self.pro:
-            raise ConnectionError("Tushare服务未初始化或连接失败。")
-
-        try:
-            df = self.pro.income(
-                ts_code=ts_code,
-                start_date=start_date,
-                end_date=end_date,
-                fields=(
-                    "ts_code,ann_date,end_date,total_revenue,revenue,"
-                    "n_income,operate_profit,basic_eps"
-                ),
-            )
-            if df is None:
-                return pd.DataFrame()
-            sort_cols = [c for c in ["ann_date", "end_date"] if c in df.columns]
-            if sort_cols:
-                df = df.sort_values(sort_cols, ascending=False)
-            return df
-        except Exception as e:
-            print(f"❌ 获取 {ts_code} 利润表数据失败: {e}")
-            return pd.DataFrame()
-
-    def get_balance_sheet(
-        self, ts_code: str, start_date: str, end_date: str
-    ) -> pd.DataFrame:
-        """获取资产负债表数据，按公告日期/报告期倒序返回最近记录"""
-        if not self.pro:
-            raise ConnectionError("Tushare服务未初始化或连接失败。")
-
-        try:
-            df = self.pro.balancesheet(
-                ts_code=ts_code,
-                start_date=start_date,
-                end_date=end_date,
-                fields=(
-                    "ts_code,ann_date,end_date,total_assets,total_liab,"
-                    "total_hldr_eqy_exc_min_int"
-                ),
-            )
-            if df is None:
-                return pd.DataFrame()
-            sort_cols = [c for c in ["ann_date", "end_date"] if c in df.columns]
-            if sort_cols:
-                df = df.sort_values(sort_cols, ascending=False)
-            return df
-        except Exception as e:
-            print(f"❌ 获取 {ts_code} 资产负债表数据失败: {e}")
-            return pd.DataFrame()
-
-    def get_cash_flow(
-        self, ts_code: str, start_date: str, end_date: str
-    ) -> pd.DataFrame:
-        """获取现金流量表数据，按公告日期/报告期倒序返回最近记录"""
-        if not self.pro:
-            raise ConnectionError("Tushare服务未初始化或连接失败。")
-
-        try:
-            df = self.pro.cashflow(
-                ts_code=ts_code,
-                start_date=start_date,
-                end_date=end_date,
-                fields=(
-                    "ts_code,ann_date,end_date,n_cashflow_act,"
-                    "c_cash_equ_end_period,free_cashflow"
-                ),
-            )
-            if df is None:
-                return pd.DataFrame()
-            sort_cols = [c for c in ["ann_date", "end_date"] if c in df.columns]
-            if sort_cols:
-                df = df.sort_values(sort_cols, ascending=False)
-            return df
-        except Exception as e:
-            print(f"❌ 获取 {ts_code} 现金流量表数据失败: {e}")
-            return pd.DataFrame()
-
-    def get_financial_indicators(
-        self, ts_code: str, start_date: str, end_date: str
-    ) -> pd.DataFrame:
-        """获取财务指标数据（fina_indicator），按公告日期/报告期倒序返回最近记录"""
-        if not self.pro:
-            raise ConnectionError("Tushare服务未初始化或连接失败。")
-
-        try:
-            df = self.pro.fina_indicator(
-                ts_code=ts_code,
-                start_date=start_date,
-                end_date=end_date,
-                fields=(
-                    "ts_code,ann_date,end_date,eps,dt_eps,bps,ocfps,cfps,"
-                    "roe,roe_waa,roe_dt,roa,netprofit_margin,current_ratio,quick_ratio,"
-                    "assets_to_eqt,ebit,ebitda,fcff,fcfe,working_capital,retained_earnings,"
-                    "debt_to_assets,basic_eps_yoy,netprofit_yoy,roe_yoy,tr_yoy,or_yoy"
-                ),
-            )
-            if df is None:
-                return pd.DataFrame()
-            sort_cols = [c for c in ["ann_date", "end_date"] if c in df.columns]
-            if sort_cols:
-                df = df.sort_values(sort_cols, ascending=False)
-            return df
-        except Exception as e:
-            print(f"❌ 获取 {ts_code} 财务指标数据失败: {e}")
-            return pd.DataFrame()
-
-    def get_performance_express(
-        self, ts_code: str, start_date: str, end_date: str
-    ) -> pd.DataFrame:
-        """获取业绩快报（express），用于在年报/季报未披露前的快速指标补充"""
-        if not self.pro:
-            raise ConnectionError("Tushare服务未初始化或连接失败。")
-        try:
-            df = self.pro.express(
-                ts_code=ts_code,
-                start_date=start_date,
-                end_date=end_date,
-                fields=(
-                    "ts_code,ann_date,end_date,revenue,operate_profit,total_profit,"
-                    "n_income,total_assets,total_hldr_eqy_exc_min_int,diluted_eps,diluted_roe"
-                ),
-            )
-            if df is None:
-                return pd.DataFrame()
-            sort_cols = [c for c in ["ann_date", "end_date"] if c in df.columns]
-            if sort_cols:
-                df = df.sort_values(sort_cols, ascending=False)
-            return df
-        except Exception as e:
-            print(f"❌ 获取 {ts_code} 业绩快报失败: {e}")
-            return pd.DataFrame()
-
-    def get_market_data(self, ts_code: str) -> Dict:
-        """获取市场数据（市值等），带有交易日回退逻辑"""
-        if not self.pro:
-            raise ConnectionError("Tushare服务未初始化或连接失败。")
-
-        try:
-            # 获取基本信息
-            basic_info = self.pro.stock_basic(
-                ts_code=ts_code, fields="ts_code,name,industry,market,list_date"
-            )
-
-            # 优先尝试当日
-            today = datetime.now().strftime("%Y%m%d")
-            print(f"🔍 获取 {ts_code} 的市场数据，日期: {today}")
-            is_today = True  # 默认认为是当天数据
-            daily_basic = self.pro.daily_basic(
-                ts_code=ts_code,
-                trade_date=today,
-                fields="ts_code,trade_date,total_mv,circ_mv,pe,pb,pe_ttm,pb_mrq",
-            )
-
-            # 若当日无数据（非交易日或未更新），回退近10个自然日内最近一条
-            if daily_basic is None or daily_basic.empty:
-                is_today = False  # 发生回退，标记为非当天数据
-                print(f"📅 当日({today})无数据，回退获取最近10天数据")
-                start = (datetime.now() - timedelta(days=10)).strftime("%Y%m%d")
-                recent = self.pro.daily_basic(
-                    ts_code=ts_code,
-                    start_date=start,
-                    end_date=today,
-                    fields="ts_code,trade_date,total_mv,circ_mv,pe,pb,pe_ttm,pb_mrq",
-                )
-                if recent is not None and not recent.empty:
-                    daily_basic = recent.sort_values(
-                        "trade_date", ascending=False
-                    ).head(1)
-                    print(
-                        f"✅ 获取到最近交易日数据：{daily_basic.iloc[0]['trade_date']}"
-                    )
-
-            result = {}
-            if basic_info is not None and not basic_info.empty:
-                result.update(basic_info.iloc[0].to_dict())
-            if daily_basic is not None and not daily_basic.empty:
-                daily_data = daily_basic.iloc[0].to_dict()
-                result.update(daily_data)
-                result["is_today"] = is_today  # 在结果中加入是否为当天数据的标识
-                print(
-                    f"📊 市场数据: PE={daily_data.get('pe_ttm', 'N/A')}, PB={daily_data.get('pb_mrq', 'N/A')}"
-                )
-
-            return result
-        except Exception as e:
-            print(f"❌ 获取 {ts_code} 市场数据失败: {e}")
-            return {}
-
-    # --- 报告生成函数 ---
-    # 以下函数现在只负责组合数据，任何数据获取失败都会导致它们抛出异常
+    # ==================== 报告生成函数 ====================
 
     def get_stock_data_report(self, symbol: str, start_date: str, end_date: str) -> str:
-        """
-        生成价格行情分析报告。
-        如果任何依赖的数据获取失败，此函数将抛出异常。
-        """
-        # 这些调用现在会直接抛出异常，无需try-except
-        stock_info = self.get_stock_info(symbol)
-        data = self.get_stock_daily(symbol, start_date, end_date)
+        """生成股票数据分析报告"""
+        try:
+            # 获取股票信息和日线数据
+            info = self.get_stock_info(symbol)
+            data = self.get_stock_daily(symbol, start_date, end_date)
 
-        # 根据市场确定货币符号
-        market_info = StockUtils.get_market_info(symbol)
-        currency_symbol = "¥"  # 默认为人民币
-        if market_info["is_hk"]:
-            currency_symbol = "HK$"
-        elif market_info["is_us"]:
-            currency_symbol = "$"
-        # --- 如果代码能执行到这里，说明所有数据都已成功获取 ---
-        stock_name = stock_info.get("name", f"股票{symbol}")
-        latest_data = data.iloc[-1]
+            ts_code = info.get("ts_code", symbol)
+            name = info.get("name", symbol)
 
-        change_pct_str = "N/A"
-        if len(data) > 1:
-            prev_close = data.iloc[-2]["close"]
-            if prev_close != 0:
+            # 计算统计数据
+            latest_data = data.iloc[-1]
+            current_price = f"¥{latest_data['close']:.2f}"
+
+            # 计算涨跌幅
+            change_pct_str = "N/A"
+            if len(data) > 1:
+                prev_close = data.iloc[-2]["close"]
                 change_pct = (latest_data["close"] - prev_close) / prev_close * 100
                 change_pct_str = f"{change_pct:+.2f}%"
 
-        volume = latest_data.get("volume", 0)
-        volume_str = (
-            f"{volume / 10000:.1f}万手" if volume > 10000 else f"{volume:.0f}手"
-        )
-
-        report = f"# {symbol} 股票数据分析\n\n"
-        report += f"## 📊 实时行情\n- 股票名称: {stock_name}\n- 股票代码: {symbol}\n- 当前价格: {currency_symbol}{latest_data['close']:.2f}\n- 涨跌幅: {change_pct_str}\n- 成交量: {volume_str}\n- 数据来源: Tushare\n\n"
-        report += f"## 📈 历史数据概览\n- 数据期间: {start_date} 至 {end_date}\n- 数据条数: {len(data)}条\n- 期间最高: {currency_symbol}{data['high'].max():.2f}\n- 期间最低: {currency_symbol}{data['low'].min():.2f}\n\n"
-        report += "## 📋 最新交易数据 (最近5天)\n"
-
-        display_columns = ["date", "open", "high", "low", "close", "volume", "涨跌幅"]
-        existing_columns = [col for col in display_columns if col in data.columns]
-        report += data[existing_columns].tail(5).to_markdown(index=False)
-
-        return report
-
-    def get_unified_fundamentals_report(
-        self,
-        ticker: str,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        curr_date: Optional[str] = None,
-    ) -> str:
-        """
-        生成统一的股票基本面分析报告。
-        如果任何依赖的数据获取失败，此函数将抛出异常。
-        """
-        print(f"📊 [统一基本面工具] 开始分析股票: {ticker}")
-        market_info = StockUtils.get_market_info(ticker)
-
-        now = datetime.now()
-        curr_date_str = curr_date or now.strftime("%Y-%m-%d")
-        end_date_str = end_date or now.strftime("%Y-%m-%d")
-        start_date_str = start_date or (now - timedelta(days=30)).strftime("%Y-%m-%d")
-
-        result_parts = []
-
-        if market_info["is_china"]:
-            print(f"🇨🇳 [统一基本面工具] 处理A股数据...")
-
-            # 1. 获取价格行情报告。如果失败，会直接抛出异常。
-            price_report = self.get_stock_data_report(
-                ticker, start_date_str, end_date_str
-            )
-            result_parts.append(f"## A股价格数据\n{price_report}")
-
-            # 2. 获取财务基本面数据。如果失败，会直接抛出异常。
-            period = curr_date_str.replace("-", "")
-            fundamentals_data = self.get_china_fundamentals(ticker, period=period)
-
-            # --- 代码执行到此，说明财务数据也已成功获取 ---
-            fundamentals_report = ""
-            bs_data = fundamentals_data.get("balance_sheet")
-            fundamentals_report += "### 资产负债表\n" + (
-                pd.DataFrame(bs_data).to_markdown(index=False) + "\n\n"
-                if bs_data
-                else "无数据。\n\n"
+            volume = latest_data.get("volume", 0)
+            volume_str = (
+                f"{volume / 10000:.1f}万手" if volume > 10000 else f"{volume:.0f}手"
             )
 
-            is_data = fundamentals_data.get("income_statement")
-            fundamentals_report += "### 利润表\n" + (
-                pd.DataFrame(is_data).to_markdown(index=False) + "\n\n"
-                if is_data
-                else "无数据。\n\n"
-            )
+            # 生成报告
+            report = f"# {name}（{ts_code}）股票数据分析\n\n"
+            report += f"## 📊 实时行情\n"
+            report += f"- 股票代码: {ts_code}\n"
+            report += f"- 股票名称: {name}\n"
+            report += f"- 当前价格: {current_price}\n"
+            report += f"- 涨跌幅: {change_pct_str}\n"
+            report += f"- 成交量: {volume_str}\n"
+            report += f"- 数据来源: Tushare\n\n"
 
-            cf_data = fundamentals_data.get("cash_flow")
-            fundamentals_report += "### 现金流量表\n" + (
-                pd.DataFrame(cf_data).to_markdown(index=False) + "\n\n"
-                if cf_data
-                else "无数据。\n\n"
-            )
+            report += f"## 📈 历史数据概览\n"
+            report += f"- 数据期间: {start_date} 至 {end_date}\n"
+            report += f"- 数据条数: {len(data)}条\n"
+            report += f"- 期间最高: ¥{data['high'].max():.2f}\n"
+            report += f"- 期间最低: ¥{data['low'].min():.2f}\n\n"
 
-            result_parts.append(
-                f"## A股基本面数据 (报告期: {period})\n{fundamentals_report}"
-            )
+            report += "## 📋 最新交易数据 (最近5天)\n"
+            display_columns = [
+                c
+                for c in ["date", "open", "high", "low", "close", "volume"]
+                if c in data.columns
+            ]
+            report += data[display_columns].tail(5).to_markdown(index=False)
 
-        elif market_info["is_hk"]:
-            print(f"🇭🇰 [统一基本面工具] 处理港股数据...")
-
-            # 1. 获取港股价格行情报告
-            try:
-                price_report = self.get_hk_stock_data_report(
-                    ticker, start_date_str, end_date_str
-                )
-                result_parts.append(f"## 港股价格数据\n{price_report}")
-            except Exception as e:
-                result_parts.append(f"## 港股价格数据\n❌ 获取价格数据失败: {e}")
-
-            # 2. 获取港股财务基本面数据
-            try:
-                period = curr_date_str.replace("-", "")
-                fundamentals_data = self.get_hk_fundamentals(ticker, period=period)
-
-                fundamentals_report = ""
-                is_data = fundamentals_data.get("income_statement")
-                fundamentals_report += "### 利润表\n" + (
-                    pd.DataFrame(is_data).to_markdown(index=False) + "\n\n"
-                    if is_data
-                    else "无数据。\n\n"
-                )
-
-                bs_data = fundamentals_data.get("balance_sheet")
-                fundamentals_report += "### 资产负债表\n" + (
-                    pd.DataFrame(bs_data).to_markdown(index=False) + "\n\n"
-                    if bs_data
-                    else "无数据。\n\n"
-                )
-
-                cf_data = fundamentals_data.get("cash_flow")
-                fundamentals_report += "### 现金流量表\n" + (
-                    pd.DataFrame(cf_data).to_markdown(index=False) + "\n\n"
-                    if cf_data
-                    else "无数据。\n\n"
-                )
-
-                result_parts.append(
-                    f"## 港股基本面数据 (报告期: {period})\n{fundamentals_report}"
-                )
-            except Exception as e:
-                result_parts.append(f"## 港股基本面数据\n❌ 获取基本面数据失败: {e}")
-
-        elif market_info["is_us"]:
-            result_parts.append(
-                f"## 美股数据\n⚠️ {ticker} ({market_info['market_name']}) 的数据获取功能正在开发中。"
-            )
-        else:
-            result_parts.append(
-                f"## 未知市场\n❓ 无法识别股票代码 {ticker} 的市场类型。"
-            )
-
-        combined_result = f"""# {ticker} 综合分析报告
-**股票类型**: {market_info['market_name']}
-**分析日期**: {now.strftime('%Y-%m-%d')}
-
-{chr(10).join(result_parts)}
----
-*数据来源: Tushare (A股/港股) / 其他 (待定)*
-"""
-        print(f"📊 [统一基本面工具] 数据获取完成，总长度: {len(combined_result)}")
-        return combined_result
-
-    def get_hk_daily_adj(
-        self,
-        symbol: str,
-        trade_date: str = None,
-        start_date: str = None,
-        end_date: str = None,
-    ) -> pd.DataFrame:
-        """
-        获取港股复权行情数据（包含市值、股本、换手率等基本面指标）
-
-        Args:
-            symbol: 港股代码 (如: 00700.HK 或 700)
-            trade_date: 交易日期 (格式: YYYYMMDD)
-            start_date: 开始日期 (格式: YYYYMMDD)
-            end_date: 结束日期 (格式: YYYYMMDD)
-
-        Returns:
-            pd.DataFrame: 港股复权行情数据，包含基本面指标
-        """
-        if not self.pro:
-            raise ConnectionError("Tushare服务未初始化或连接失败。")
-
-        try:
-            ts_code = symbol  # 直接使用已经标准化的代码
-            params = {}
-            if ts_code:
-                params["ts_code"] = ts_code
-            if trade_date:
-                params["trade_date"] = trade_date
-            if start_date:
-                params["start_date"] = start_date
-            if end_date:
-                params["end_date"] = end_date
-
-            df = self.pro.hk_daily_adj(**params)
-            if df is None or df.empty:
-                raise DataNotFoundError(f"未找到 {ts_code} 的港股复权行情数据。")
-
-            print(f"✅ 获取港股复权行情 {ts_code} 数据成功: {len(df)} 条")
-            return df
-        except Exception as e:
-            print(f"❌ 获取港股复权行情 {ts_code} 数据时发生错误: {e}")
-            raise
-
-    def get_hk_basic_fundamentals(self, symbol: str) -> Dict:
-        """
-        获取港股基础基本面数据（使用复权行情接口降级处理）
-
-        由于港股财务报表API不可用，使用hk_daily_adj接口获取市值、股本等指标
-
-        Args:
-            symbol: 港股代码 (如: 00700.HK 或 700)
-
-        Returns:
-            Dict: 港股基础基本面数据
-        """
-        if not self.pro:
-            raise ConnectionError("Tushare服务未初始化或连接失败。")
-
-        try:
-            ts_code = symbol  # 直接使用已经标准化的代码
-            # 1. 获取港股基本信息
-            basic_info = {}
-            try:
-                df_basic = self.pro.hk_basic(ts_code=ts_code)
-                if df_basic is not None and not df_basic.empty:
-                    basic_info = df_basic.iloc[0].to_dict()
-                    print(f"✅ 获取港股基本信息成功: {ts_code}")
-            except Exception as e:
-                print(f"⚠️ 获取港股基本信息失败: {e}")
-
-            # 2. 获取最新的复权行情数据（包含基本面指标）
-            market_data = {}
-            try:
-                # 获取最近5个交易日的数据
-                end_date = datetime.now().strftime("%Y%m%d")
-                start_date = (datetime.now() - timedelta(days=10)).strftime("%Y%m%d")
-
-                df_adj = self.get_hk_daily_adj(
-                    symbol, start_date=start_date, end_date=end_date
-                )
-                if not df_adj.empty:
-                    # 使用最新交易日的数据
-                    latest_data = df_adj.iloc[0]
-                    market_data = {
-                        "latest_price": latest_data.get("close", 0),
-                        "total_market_cap": latest_data.get("total_mv", 0),
-                        "free_market_cap": latest_data.get("free_mv", 0),
-                        "total_shares": latest_data.get("total_share", 0),
-                        "free_shares": latest_data.get("free_share", 0),
-                        "turnover_ratio": latest_data.get("turnover_ratio", 0),
-                        "trade_date": latest_data.get("trade_date", ""),
-                        "pct_change": latest_data.get("pct_change", 0),
-                        "volume": latest_data.get("vol", 0),
-                        "amount": latest_data.get("amount", 0),
-                    }
-                    print(f"✅ 获取港股复权行情数据成功: {ts_code}")
-            except Exception as e:
-                print(f"⚠️ 获取港股复权行情数据失败: {e}")
-
-            # 3. 尝试获取港股日线数据作为补充
-            daily_data = {}
-            try:
-                end_date = datetime.now().strftime("%Y%m%d")
-                start_date = (datetime.now() - timedelta(days=5)).strftime("%Y%m%d")
-
-                df_daily = self.get_hk_daily(
-                    symbol, start_date.replace("-", ""), end_date.replace("-", "")
-                )
-                if not df_daily.empty:
-                    latest_daily = df_daily.iloc[0]
-                    daily_data = {
-                        "pre_close": latest_daily.get("pre_close", 0),
-                        "change": latest_daily.get("change", 0),
-                    }
-                    print(f"✅ 获取港股日线补充数据成功: {ts_code}")
-            except Exception as e:
-                print(f"⚠️ 获取港股日线补充数据失败: {e}")
-
-            # 4. 合并所有数据
-            combined_data = {}
-            combined_data.update(basic_info)
-            combined_data.update(market_data)
-            combined_data.update(daily_data)
-
-            if not combined_data:
-                raise DataNotFoundError(f"未能获取到 {ts_code} 的任何港股数据")
-
-            return combined_data
+            return report
 
         except Exception as e:
-            print(f"❌ 获取港股基础基本面数据失败: {e}")
-            raise
+            logger.error(f"❌ 生成股票报告失败: {symbol}, 错误: {e}")
+            return f"❌ 无法生成 {symbol} 的股票报告: {e}"
+
+
+# ==================== 便捷函数 ====================
+
+_global_service = None
+
+
+def get_tushare_service() -> TushareService:
+    """获取Tushare服务单例"""
+    global _global_service
+    if _global_service is None:
+        _global_service = TushareService()
+    return _global_service
+
+
+def get_china_stock_data_tushare(
+    symbol: str, start_date: str = None, end_date: str = None
+) -> pd.DataFrame:
+    """获取中国股票数据（便捷函数）"""
+    service = get_tushare_service()
+    return service.get_stock_daily(symbol, start_date, end_date)
+
+
+def get_china_stock_info_tushare(symbol: str) -> Dict[str, Any]:
+    """获取中国股票信息（便捷函数）"""
+    service = get_tushare_service()
+    return service.get_stock_info(symbol)

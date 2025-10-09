@@ -10,7 +10,7 @@ from functools import partial
 
 # 导入本地服务
 from .services.akshare_service import AkshareService
-from .services.fundamentals_service import FundamentalsAnalysisService
+from .services.fundamentals_service import FundamentalsService
 from .services.market_service import MarketDataService
 from .services.new_service import get_news_service
 from .services.tavily_service import TavilyService
@@ -53,7 +53,7 @@ class StockMCPServer:
             self.akshare_service = None
 
         try:
-            self.fundamentals_service = FundamentalsAnalysisService()
+            self.fundamentals_service = FundamentalsService()
             logger.info("✅ 基本面服务初始化成功")
         except Exception as e:
             logger.error(f"❌ 基本面服务初始化失败: {e}")
@@ -80,12 +80,18 @@ class StockMCPServer:
             logger.error(f"❌ Tavily研究服务初始化失败: {e}")
             self.tavily_service = None
 
-    def create_mcp_server(self, port: int = None) -> FastMCP:
-        """创建并配置 FastMCP 服务器"""
+    def create_mcp_server(self, port: int = None, host: str = "0.0.0.0") -> FastMCP:
+        """创建并配置 FastMCP 服务器
+
+        Args:
+            port: 服务器端口
+            host: 服务器监听地址，默认 0.0.0.0 允许外部访问
+        """
         mcp = FastMCP(
             name="stock-data-server",
             instructions="股票数据分析MCP服务器，提供实时行情、基本面分析、新闻情绪等功能",
             port=port,
+            host=host,  # 添加 host 参数
             # 设置为无状态模式，允许独立的JSON-RPC请求（如 tools/list）
             stateless_http=True,
         )
