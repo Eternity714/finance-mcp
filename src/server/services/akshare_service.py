@@ -1,16 +1,16 @@
 """
-AKShare 数据服务 - 优化版本
+AKShare 数据服务 - 使用统一连接管理
 基于参考文件 cankao/akshare_utils.py 的经过验证的API实现
 """
 
 import pandas as pd
 from typing import Dict, Optional, Any
-import threading
-import socket
-import requests
-import warnings
-import logging
 from datetime import datetime
+import logging
+import warnings
+import threading
+import requests
+import socket
 
 try:
     from requests.adapters import HTTPAdapter

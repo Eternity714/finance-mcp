@@ -47,10 +47,25 @@ class Settings:
         self.mcp_server_version: str = os.getenv("MCP_SERVER_VERSION", "1.0.0")
 
         # Redis配置
-        self.redis_host: str = os.getenv("REDIS_HOST", "localhost")
-        self.redis_port: int = _get_env_var_as_int("REDIS_PORT", "6379")
-        self.redis_db: int = _get_env_var_as_int("REDIS_DB", "0")
-        self.redis_password: Optional[str] = os.getenv("REDIS_PASSWORD")
+        self.REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
+        self.REDIS_PORT: int = _get_env_var_as_int("REDIS_PORT", "6379")
+        self.REDIS_DB: int = _get_env_var_as_int("REDIS_DB", "0")
+        self.REDIS_PASSWORD: Optional[str] = os.getenv("REDIS_PASSWORD")
+        self.REDIS_POOL_SIZE: int = _get_env_var_as_int("REDIS_POOL_SIZE", "10")
+
+        # 保持旧配置的兼容性
+        self.redis_host: str = self.REDIS_HOST
+        self.redis_port: int = self.REDIS_PORT
+        self.redis_db: int = self.REDIS_DB
+        self.redis_password: Optional[str] = self.REDIS_PASSWORD
+
+        # MySQL配置（宏观数据）
+        self.MYSQL_HOST: str = os.getenv("MYSQL_HOST", "localhost")
+        self.MYSQL_PORT: int = _get_env_var_as_int("MYSQL_PORT", "3306")
+        self.MYSQL_USER: str = os.getenv("MYSQL_USER", "root")
+        self.MYSQL_PASSWORD: str = os.getenv("MYSQL_PASSWORD", "")
+        self.MYSQL_DATABASE: str = os.getenv("MYSQL_DATABASE", "stock_mcp")
+        self.MYSQL_POOL_SIZE: int = _get_env_var_as_int("MYSQL_POOL_SIZE", "10")
 
         # AKShare配置
         self.akshare_timeout: int = _get_env_var_as_int("AKSHARE_TIMEOUT", "30")

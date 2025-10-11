@@ -15,41 +15,42 @@ try:
 except ImportError:
     ts = None
 
-from ...config.settings import get_settings
 from ..utils.symbol_processor import get_symbol_processor
 from ..exception.exception import DataNotFoundError
+from ..core.connection_registry import get_connection_registry
 
 logger = logging.getLogger("tushare_service")
 warnings.filterwarnings("ignore")
 
 
 class TushareService:
-    """封装Tushare API的数据服务（经过验证优化的版本）"""
+    """封装Tushare API的数据服务（使用统一连接管理）"""
 
     def __init__(self):
         """初始化Tushare服务"""
-        settings = get_settings()
+        self.connection_registry = get_connection_registry()
+        self.symbol_processor = get_symbol_processor()
 
-        if not settings.TUSHARE_TOKEN:
-            self.connected = False
-            logger.error("❌ 未配置TUSHARE_TOKEN，请设置环境变量")
-            raise ValueError("未配置TUSHARE_TOKEN")
-
-        if ts is None:
-            self.connected = False
-            logger.error("❌ Tushare库未安装，请执行: pip install tushare")
-            raise ImportError("tushare 未安装")
-
+        # 验证 Tushare 连接是否可用（不强制要求）
         try:
-            ts.set_token(settings.TUSHARE_TOKEN)
-            self.pro = ts.pro_api()
-            self.symbol_processor = get_symbol_processor()
-            self.connected = True
-            logger.info("✅ Tushare API连接成功")
+            tushare_conn = self.connection_registry.get_connection("tushare")
+            if tushare_conn and not tushare_conn.is_healthy():
+                logger.warning("⚠️ Tushare连接不健康，尝试重连...")
+                tushare_conn.reconnect()
+            if tushare_conn:
+                logger.info("✅ TushareService 初始化成功")
+            else:
+                logger.warning("⚠️ Tushare 未配置或初始化失败")
         except Exception as e:
-            self.connected = False
-            logger.error(f"❌ Tushare API连接失败: {e}")
-            raise ConnectionError(f"Tushare 连接失败: {e}") from e
+            logger.warning(f"⚠️ TushareService 初始化失败: {e}")
+
+    @property
+    def pro(self):
+        """延迟获取 Tushare API 客户端"""
+        try:
+            return self.connection_registry.get_tushare()
+        except ConnectionError:
+            return None
 
     # ==================== A股数据接口 ====================
 

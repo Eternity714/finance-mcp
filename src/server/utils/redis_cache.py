@@ -4,6 +4,7 @@ Redis缓存管理器
 """
 
 import functools
+import os
 import redis
 import pickle
 import time
@@ -27,16 +28,27 @@ except (ImportError, ModuleNotFoundError):
 class RedisCache:
     """Redis缓存管理器"""
 
-    def __init__(self, host="localhost", port=6379, db=0, decode_responses=False):
+
+class RedisCache:
+    """Redis缓存管理器"""
+
+    def __init__(self, host=None, port=None, db=None, decode_responses=False):
         """
         初始化Redis连接
 
         Args:
-            host: Redis主机地址
-            port: Redis端口
-            db: Redis数据库编号
+            host: Redis主机地址（默认从环境变量读取）
+            port: Redis端口（默认从环境变量读取）
+            db: Redis数据库编号（默认从环境变量读取）
             decode_responses: 是否自动解码响应（DataFrame需要设为False）
         """
+        # 优先使用传入的参数，其次使用环境变量，最后使用默认值
+        host = host or os.getenv("REDIS_HOST", "localhost")
+        port = port or int(os.getenv("REDIS_PORT", "6379"))
+        db = db if db is not None else int(os.getenv("REDIS_DB", "0"))
+
+        logger.info(f"🔧 Redis配置: host={host}, port={port}, db={db}")
+
         try:
             self.redis_client = redis.Redis(
                 host=host,
@@ -54,7 +66,7 @@ class RedisCache:
 
         except Exception as e:
             self.connected = False
-            logger.error(f"❌ Redis连接失败: {e}")
+            logger.error(f"❌ Redis连接失败 ({host}:{port}): {e}")
             logger.warning("🔄 将使用内存缓存作为降级方案")
             self._memory_cache = {}
 

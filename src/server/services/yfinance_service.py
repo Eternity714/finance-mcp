@@ -1,5 +1,5 @@
 """
-YFinance 数据服务
+YFinance 数据服务 - 使用统一连接管理
 封装 yfinance 库，提供统一的接口获取全球市场（特别是美股和港股）数据。
 """
 
@@ -7,39 +7,42 @@ import pandas as pd
 from typing import Dict, Optional, Any
 import logging
 
-from ...config.settings import get_settings
-
 try:
     import yfinance as yf
 except ImportError:
     yf = None
 
+from ...config.settings import get_settings
+
 logger = logging.getLogger("yfinance_service")
 
 
 class YFinanceService:
-    """封装 yfinance 的数据服务。"""
+    """封装 yfinance 的数据服务（简化连接管理）"""
 
     def __init__(self, proxy: Optional[str] = None):
         """初始化 YFinance 服务"""
         if yf is None:
-            self.connected = False
             logger.error("❌ yfinance 未安装，请执行 'pip install yfinance'")
             raise ImportError("yfinance 未安装")
 
         settings = get_settings()
         # 优先使用传入的代理，其次是配置文件的，最后是None
-        self.proxy = proxy or settings.yfinance_proxy
+        self.proxy = proxy or getattr(settings, "yfinance_proxy", None)
 
         if self.proxy:
             logger.info(f"🔧 YFinanceService 将使用代理: {self.proxy}")
         else:
             logger.info("🔧 YFinanceService 未配置代理")
 
-        self.connected = True
         logger.info("✅ YFinanceService 初始化成功")
 
-    def _get_ticker(self, symbol: str) -> "yf.Ticker":
+    @property
+    def connected(self) -> bool:
+        """YFinance 不需要连接状态，始终返回 True"""
+        return yf is not None
+
+    def _get_ticker(self, symbol: str):
         """获取 yfinance Ticker 对象"""
         if not self.connected:
             raise ConnectionError("YFinanceService 未连接")

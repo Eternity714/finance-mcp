@@ -13,6 +13,7 @@ certifi
 cffi
 charset-normalizer
 click
+pymysql
 cryptography
 curl_cffi
 cyclopts
@@ -122,3 +123,5 @@ yarl
 yfinance
 tavily-python
 pandas_market_calendars
+schedule 
+python-dateutil
