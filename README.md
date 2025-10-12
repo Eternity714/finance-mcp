@@ -21,6 +21,8 @@
 - 🤖 **AI 智能分析** - 新闻情绪分析、深度研究报告、智能搜索
 - 🚀 **开箱即用** - Docker 一键部署，5分钟启动服务
 - 📊 **多数据源融合** - AKShare、Tushare、yFinance、Finnhub 智能聚合
+- 🏛️ **宏观经济数据** - GDP、CPI、PMI、货币供应量等全面覆盖
+- 🧪 **快速测试工具** - 内置接口测试页面，可视化API调试
 - 💾 **高性能缓存** - Redis 加速 + 自动降级，稳定可靠
 
 ---
@@ -29,7 +31,7 @@
 
 ```bash
 # 1. 克隆项目
-git clone <your-repo-url> && cd stock-mcp
+git clone git@github.com:huweihua123/stock-mcp.git && cd stock-mcp
 
 # 2. 配置环境变量（必需：TUSHARE_TOKEN）
 cp .env.example .env && vim .env
@@ -39,6 +41,9 @@ docker-compose up -d
 
 # 4. 访问服务
 open http://localhost:9998/docs
+
+# 5. 快速测试页面（可视化API调试）
+open http://localhost:9998/
 ```
 
 > 💡 **查看样例报告**: 想了解 AI 分析能力?查看 [样例报告](docs/sample-reports/) 了解完整的技术分析和基本面报告格式
@@ -58,7 +63,12 @@ curl "http://localhost:9998/api/stock/fundamental?symbol=000008&curr_date=2025-0
 curl -X POST "http://localhost:9998/api/stock/quotes" \
   -H "Content-Type: application/json" \
   -d '{"symbols": ["AAPL", "TSLA", "MSFT"]}'
+
+# 查询宏观经济数据
+curl "http://localhost:9998/api/macro/gdp?start_date=2020-01-01&end_date=2024-12-31"
 ```
+
+> 🎨 **可视化测试**: 访问 http://localhost:9998/ 使用内置的接口测试工具，无需命令行即可快速测试所有API
 
 ---
 
@@ -66,21 +76,29 @@ curl -X POST "http://localhost:9998/api/stock/quotes" \
 
 ### 📋 API 接口概览
 
-| 分类           | 接口           | 端点                                    | 描述                |
-| -------------- | -------------- | --------------------------------------- | ------------------- |
-| 📊 **行情数据** | Market Price   | `GET /stock/price`                      | 历史价格+AI分析报告 |
-|                | Stock Quote    | `GET /api/stock/news`                   | 实时行情快照        |
-|                | Stock Quotes   | `POST /api/stock/quotes`                | 批量行情查询        |
-| 💼 **基本面**   | Fundamental    | `GET /api/stock/fundamental`            | 财务基本面数据      |
-| 📰 **新闻资讯** | Stock News     | `GET /api/stock/news`                   | 最新股票新闻        |
-|                | News by Date   | `GET /api/stock/news/date`              | 指定日期新闻        |
-| 📅 **交易日历** | Trading Days   | `GET /api/calendar/trading-days`        | 交易日列表          |
-|                | Is Trading Day | `GET /api/calendar/is-trading-day`      | 交易日检查          |
-|                | Trading Hours  | `GET /api/calendar/trading-hours`       | 交易时间信息        |
-|                | Exchanges      | `GET /api/calendar/supported-exchanges` | 支持的交易所        |
+| 分类           | 接口             | 端点                                    | 描述                |
+| -------------- | ---------------- | --------------------------------------- | ------------------- |
+| 📊 **行情数据** | Market Price     | `GET /stock/price`                      | 历史价格+AI分析报告 |
+|                | Stock Quote      | `GET /api/stock/news`                   | 实时行情快照        |
+|                | Stock Quotes     | `POST /api/stock/quotes`                | 批量行情查询        |
+| 💼 **基本面**   | Fundamental      | `GET /api/stock/fundamental`            | 财务基本面数据      |
+| 📰 **新闻资讯** | Stock News       | `GET /api/stock/news`                   | 最新股票新闻        |
+|                | News by Date     | `GET /api/stock/news/date`              | 指定日期新闻        |
+| 🏛️ **宏观经济** | GDP Data         | `GET /api/macro/gdp`                    | GDP数据查询         |
+|                | CPI Data         | `GET /api/macro/cpi`                    | CPI数据查询         |
+|                | PMI Data         | `GET /api/macro/pmi`                    | PMI数据查询         |
+|                | PPI Data         | `GET /api/macro/ppi`                    | PPI数据查询         |
+|                | Money Supply     | `GET /api/macro/money-supply`           | 货币供应量数据      |
+|                | LPR Data         | `GET /api/macro/lpr`                    | LPR利率数据         |
+|                | Social Financing | `GET /api/macro/social-financing`       | 社会融资规模数据    |
+| 📅 **交易日历** | Trading Days     | `GET /api/calendar/trading-days`        | 交易日列表          |
+|                | Is Trading Day   | `GET /api/calendar/is-trading-day`      | 交易日检查          |
+|                | Trading Hours    | `GET /api/calendar/trading-hours`       | 交易时间信息        |
+|                | Exchanges        | `GET /api/calendar/supported-exchanges` | 支持的交易所        |
 
 > 💡 **提示**: 所有接口支持 A股、港股、美股三大市场  
-> 📚 **详细文档**: 启动后访问 http://localhost:9998/docs
+> 📚 **详细文档**: 启动后访问 http://localhost:9998/docs  
+> 🧪 **快速测试**: 访问 http://localhost:9998/ 使用可视化测试工具
 
 ---
 
@@ -94,6 +112,7 @@ curl -X POST "http://localhost:9998/api/stock/quotes" \
 - ✅ **财务报表** - 资产负债表、现金流
 - ✅ **技术指标** - MACD、RSI、布林带
 - ✅ **资金流向** - 主力资金、北向资金
+- ✅ **宏观数据** - GDP、CPI、PMI、PPI等
 
 </td>
 <td width="50%">
@@ -104,6 +123,7 @@ curl -X POST "http://localhost:9998/api/stock/quotes" \
 - 📈 **深度研究** - AI 生成研究报告
 - 💡 **决策辅助** - 数据驱动的投资建议
 - 🌐 **多语言支持** - 中英文自动识别
+- 🧪 **可视化测试** - 内置API测试工具
 
 </td>
 </tr>
@@ -143,13 +163,64 @@ NEWS_API_KEY=your_key       # 新闻聚合
 
 ---
 
+## 🧪 接口测试工具
+
+### 🎯 快速开始测试
+
+无需安装任何工具，直接在浏览器中测试所有API接口：
+
+1. **启动服务**: `docker-compose up -d`
+2. **打开测试页面**: http://localhost:9998/
+3. **选择接口**: 从左侧面板选择要测试的API
+4. **填写参数**: 自动填充常用参数，支持自定义修改
+5. **发送请求**: 一键测试，实时查看响应结果
+
+### ✨ 功能特性
+
+- 🎨 **可视化界面** - 直观的API分类和参数表单
+- 🔄 **实时测试** - 即时发送请求并显示响应
+- 🎯 **参数预填** - 智能填充常用股票代码和日期
+- 📝 **结果高亮** - JSON响应自动格式化和语法高亮
+- 📊 **多接口支持** - 覆盖股票、宏观经济、交易日历所有接口
+- 🌐 **响应式设计** - 支持桌面和移动设备
+
+### 📱 界面截图
+
+![接口测试页面主界面](docs/api-screenshots/接口测试页面.png)
+
+![接口测试详细功能](docs/api-screenshots/接口测试页面2.png)
+
+### 🚀 常用测试场景
+
+```
+🔹 股票数据测试
+   • 查询贵州茅台(600519)历史价格和技术分析
+   • 获取苹果(AAPL)实时行情快照
+   • 批量查询多只热门股票
+
+🔹 宏观经济数据测试
+   • 查询最近5年GDP增长趋势
+   • 获取CPI、PPI通胀数据对比
+   • 分析货币供应量变化
+
+🔹 交易日历测试
+   • 检查节假日是否为交易日
+   • 获取指定时间段的所有交易日
+   • 查询不同交易所的交易时间
+```
+
+---
+
 ## 📡 API 接口文档
 
 ### 🎨 交互式文档
 
 启动服务后访问以下地址查看完整的 Swagger UI 文档：
-- **Swagger UI**: http://localhost:9998/docs
-- **ReDoc**: http://localhost:9998/redoc
+- **Swagger UI**: http://localhost:9998/docs - 完整的OpenAPI文档
+- **ReDoc**: http://localhost:9998/redoc - 另一种文档风格
+- **🧪 API 测试工具**: http://localhost:9998/ - 可视化接口测试页面
+
+> 💡 **推荐使用**: API测试工具提供了友好的界面，支持股票、宏观经济、交易日历等所有接口的快速测试，支持参数自动填充和响应结果高亮显示。
 
 ### 📋 样例报告
 
@@ -458,6 +529,200 @@ curl -X GET "http://localhost:9998/api/calendar/supported-exchanges" \
 
 ---
 
+### 🏛️ 宏观经济数据接口
+
+<details>
+<summary><b>1️⃣ GDP 数据 - GDP Data</b></summary>
+
+#### 接口信息
+- **路径**: `GET /api/macro/gdp`
+- **描述**: 获取中国GDP数据
+
+#### 请求参数
+| 参数名          | 类型   | 必填 | 说明             | 示例           |
+| --------------- | ------ | ---- | ---------------- | -------------- |
+| `start_date`    | string | 否   | 开始日期         | `2020-01-01`   |
+| `end_date`      | string | 否   | 结束日期         | `2024-12-31`   |
+| `Authorization` | string | 否   | 认证令牌(Header) | `a7f3518b-...` |
+
+#### 响应示例
+```json
+{
+  "status": "success",
+  "message": "成功获取GDP数据",
+  "data": [
+    {
+      "季度": "2024年第3季度",
+      "国内生产总值_当季值": "306480.0",
+      "国内生产总值_累计值": "913027.0",
+      "国内生产总值_同比增长": "4.6",
+      "国内生产总值_累计同比增长": "4.8"
+    }
+  ]
+}
+```
+
+#### 使用示例
+```bash
+curl -X GET "http://localhost:9998/api/macro/gdp?start_date=2020-01-01&end_date=2024-12-31" \
+  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
+```
+
+</details>
+
+<details>
+<summary><b>2️⃣ CPI 数据 - CPI Data</b></summary>
+
+#### 接口信息
+- **路径**: `GET /api/macro/cpi`
+- **描述**: 获取中国CPI数据
+
+#### 请求参数
+| 参数名          | 类型   | 必填 | 说明             | 示例           |
+| --------------- | ------ | ---- | ---------------- | -------------- |
+| `start_date`    | string | 否   | 开始日期         | `2020-01-01`   |
+| `end_date`      | string | 否   | 结束日期         | `2024-12-31`   |
+| `Authorization` | string | 否   | 认证令牌(Header) | `a7f3518b-...` |
+
+#### 响应示例
+```json
+{
+  "status": "success",
+  "message": "成功获取CPI数据",
+  "data": [
+    {
+      "月份": "2024年09月",
+      "全国_当月": "100.4",
+      "全国_累计": "100.3",
+      "城市_当月": "100.4",
+      "城市_累计": "100.4",
+      "农村_当月": "100.5",
+      "农村_累计": "100.1"
+    }
+  ]
+}
+```
+
+#### 使用示例
+```bash
+curl -X GET "http://localhost:9998/api/macro/cpi?start_date=2020-01-01&end_date=2024-12-31" \
+  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
+```
+
+</details>
+
+<details>
+<summary><b>3️⃣ PMI 数据 - PMI Data</b></summary>
+
+#### 接口信息
+- **路径**: `GET /api/macro/pmi`
+- **描述**: 获取中国PMI数据
+
+#### 请求参数
+| 参数名          | 类型   | 必填 | 说明             | 示例           |
+| --------------- | ------ | ---- | ---------------- | -------------- |
+| `start_date`    | string | 否   | 开始日期         | `2020-01-01`   |
+| `end_date`      | string | 否   | 结束日期         | `2024-12-31`   |
+| `Authorization` | string | 否   | 认证令牌(Header) | `a7f3518b-...` |
+
+#### 使用示例
+```bash
+curl -X GET "http://localhost:9998/api/macro/pmi?start_date=2020-01-01&end_date=2024-12-31" \
+  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
+```
+
+</details>
+
+<details>
+<summary><b>4️⃣ PPI 数据 - PPI Data</b></summary>
+
+#### 接口信息
+- **路径**: `GET /api/macro/ppi`
+- **描述**: 获取中国PPI数据
+
+#### 请求参数
+| 参数名          | 类型   | 必填 | 说明             | 示例           |
+| --------------- | ------ | ---- | ---------------- | -------------- |
+| `start_date`    | string | 否   | 开始日期         | `2020-01-01`   |
+| `end_date`      | string | 否   | 结束日期         | `2024-12-31`   |
+| `Authorization` | string | 否   | 认证令牌(Header) | `a7f3518b-...` |
+
+#### 使用示例
+```bash
+curl -X GET "http://localhost:9998/api/macro/ppi?start_date=2020-01-01&end_date=2024-12-31" \
+  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
+```
+
+</details>
+
+<details>
+<summary><b>5️⃣ 货币供应量 - Money Supply</b></summary>
+
+#### 接口信息
+- **路径**: `GET /api/macro/money-supply`
+- **描述**: 获取中国货币供应量数据
+
+#### 请求参数
+| 参数名          | 类型   | 必填 | 说明             | 示例           |
+| --------------- | ------ | ---- | ---------------- | -------------- |
+| `start_date`    | string | 否   | 开始日期         | `2020-01-01`   |
+| `end_date`      | string | 否   | 结束日期         | `2024-12-31`   |
+| `Authorization` | string | 否   | 认证令牌(Header) | `a7f3518b-...` |
+
+#### 使用示例
+```bash
+curl -X GET "http://localhost:9998/api/macro/money-supply?start_date=2020-01-01&end_date=2024-12-31" \
+  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
+```
+
+</details>
+
+<details>
+<summary><b>6️⃣ LPR 利率 - LPR Data</b></summary>
+
+#### 接口信息
+- **路径**: `GET /api/macro/lpr`
+- **描述**: 获取中国LPR利率数据
+
+#### 请求参数
+| 参数名          | 类型   | 必填 | 说明             | 示例           |
+| --------------- | ------ | ---- | ---------------- | -------------- |
+| `start_date`    | string | 否   | 开始日期         | `2020-01-01`   |
+| `end_date`      | string | 否   | 结束日期         | `2024-12-31`   |
+| `Authorization` | string | 否   | 认证令牌(Header) | `a7f3518b-...` |
+
+#### 使用示例
+```bash
+curl -X GET "http://localhost:9998/api/macro/lpr?start_date=2020-01-01&end_date=2024-12-31" \
+  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
+```
+
+</details>
+
+<details>
+<summary><b>7️⃣ 社会融资规模 - Social Financing</b></summary>
+
+#### 接口信息
+- **路径**: `GET /api/macro/social-financing`
+- **描述**: 获取中国社会融资规模数据
+
+#### 请求参数
+| 参数名          | 类型   | 必填 | 说明             | 示例           |
+| --------------- | ------ | ---- | ---------------- | -------------- |
+| `start_date`    | string | 否   | 开始日期         | `2020-01-01`   |
+| `end_date`      | string | 否   | 结束日期         | `2024-12-31`   |
+| `Authorization` | string | 否   | 认证令牌(Header) | `a7f3518b-...` |
+
+#### 使用示例
+```bash
+curl -X GET "http://localhost:9998/api/macro/social-financing?start_date=2020-01-01&end_date=2024-12-31" \
+  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
+```
+
+</details>
+
+---
+
 ### 🔐 认证说明
 
 所有API接口均支持可选的 `Authorization` Header 进行身份验证：
@@ -486,7 +751,15 @@ curl "http://localhost:9998/api/calendar/is-trading-day?symbol=000001&check_date
 
 # 获取所有支持的交易所
 curl "http://localhost:9998/api/calendar/supported-exchanges"
+
+# 查询GDP数据
+curl "http://localhost:9998/api/macro/gdp?start_date=2020-01-01&end_date=2024-12-31"
+
+# 查询CPI数据
+curl "http://localhost:9998/api/macro/cpi?start_date=2023-01-01&end_date=2024-12-31"
 ```
+
+> 🎨 **可视化测试**: 访问 http://localhost:9998/ 可以直接在浏览器中测试所有接口，无需命令行操作
 
 ---
 
@@ -499,6 +772,33 @@ curl "http://localhost:9998/api/calendar/supported-exchanges"
 ✅ **详细错误信息** - 错误响应包含明确的错误码和描述  
 ✅ **OpenAPI 3.0** - 完整的API规范文档([查看](stock-mcp.openapi.json))  
 ✅ **自动文档生成** - Swagger UI + ReDoc双文档支持
+
+---
+
+## 📊 数据源说明
+
+### 股票数据
+- **A股数据**: [Tushare Pro](https://tushare.pro/) - 专业金融数据接口
+- **港股美股**: [yFinance](https://github.com/ranaroussi/yfinance) - Yahoo Finance API
+- **补充数据**: [AKShare](https://akshare.akfamily.xyz/) - 开源金融数据库
+
+### 宏观经济数据
+- **GDP数据**: 国家统计局官方发布的季度GDP数据
+- **CPI/PPI**: 国家统计局月度消费者/生产者价格指数
+- **PMI数据**: 中国物流与采购联合会发布的采购经理指数
+- **货币供应量**: 中国人民银行发布的M0、M1、M2数据
+- **LPR利率**: 贷款市场报价利率，央行每月发布
+- **社会融资规模**: 央行统计的社会融资规模存量和增量数据
+
+### 新闻资讯
+- **AI增强搜索**: [Tavily API](https://tavily.com/) - 智能搜索和摘要
+- **多源聚合**: [Finnhub](https://finnhub.io/) + [NewsAPI](https://newsapi.org/)
+
+### 数据更新频率
+- **实时行情**: 市场开盘期间实时更新
+- **基本面数据**: 财报发布后及时更新
+- **宏观数据**: 官方发布后1-2个工作日内更新
+- **新闻数据**: 实时抓取，每小时刷新
 
 ---
 
@@ -579,6 +879,23 @@ grep TUSHARE_TOKEN .env
 - [🔧 开发文档](docs/DEVELOPMENT.md) - 架构设计、二次开发
 - [🌐 OpenAPI 规范](stock-mcp.openapi.json) - 标准API规范文件
 - [💻 Swagger UI](http://localhost:9998/docs) - 交互式API测试(服务启动后访问)
+
+---
+
+## 🆕 更新日志
+
+### v2.1.0 (2025-10-13)
+- ✨ **新增宏观经济数据接口** - 支持GDP、CPI、PMI、PPI、货币供应量、LPR、社会融资规模
+- 🧪 **内置API测试工具** - 可视化接口测试页面，支持所有API的快速测试
+- 📊 **数据监控面板** - 实时展示数据获取状态和性能指标
+- 🚀 **性能优化** - 改进缓存策略，提升数据查询速度
+- 📚 **文档完善** - 新增宏观数据说明和测试工具使用指南
+
+### v2.0.0 (2025-09-15)
+- 🔄 **架构重构** - 基于MCP协议的全新架构
+- 🌐 **多市场支持** - 完整的A股/港股/美股数据覆盖
+- 🤖 **AI分析增强** - 集成GPT的智能分析报告
+- 🐳 **容器化部署** - Docker一键部署方案
 
 ---
 
