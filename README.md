@@ -265,8 +265,7 @@ NEWS_API_KEY=your_key       # 新闻聚合
 
 #### 使用示例
 ```bash
-curl -X GET "http://localhost:9998/stock/price?symbol=AAPL&start_date=2024-07-13&end_date=2025-07-13" \
-  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
+curl -X GET "http://localhost:9998/stock/price?symbol=AAPL&start_date=2024-07-13&end_date=2025-07-13"
 ```
 
 ![Market Price API](docs/api-screenshots/market-price.png)
@@ -289,8 +288,7 @@ curl -X GET "http://localhost:9998/stock/price?symbol=AAPL&start_date=2024-07-13
 
 #### 使用示例
 ```bash
-curl -X GET "http://localhost:9998/api/stock/fundamental?symbol=000008&curr_date=2025-06-01" \
-  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
+curl -X GET "http://localhost:9998/api/stock/fundamental?symbol=000008&curr_date=2025-06-01" 
 ```
 
 ![Stock Fundamental API](docs/api-screenshots/stock-fundamental.png)
@@ -328,8 +326,7 @@ curl -X GET "http://localhost:9998/api/stock/fundamental?symbol=000008&curr_date
 
 #### 使用示例
 ```bash
-curl -X GET "http://localhost:9998/api/stock/news?symbol=AAPL" \
-  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
+curl -X GET "http://localhost:9998/api/stock/news?symbol=AAPL" 
 ```
 
 ![Stock Quote API](docs/api-screenshots/stock-quote.png)
@@ -380,8 +377,7 @@ curl -X POST "http://localhost:9998/api/stock/quotes" \
 
 #### 使用示例
 ```bash
-curl -X GET "http://localhost:9998/api/stock/news?symbol=000001" \
-  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
+curl -X GET "http://localhost:9998/api/stock/news?symbol=000001"
 ```
 
 ![Stock News API](docs/api-screenshots/stock-news.png)
@@ -405,8 +401,7 @@ curl -X GET "http://localhost:9998/api/stock/news?symbol=000001" \
 
 #### 使用示例
 ```bash
-curl -X GET "http://localhost:9998/api/stock/news/date?symbol=000001&target_date=2025-09-10&days_before=7" \
-  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
+curl -X GET "http://localhost:9998/api/stock/news/date?symbol=000001&target_date=2025-09-10&days_before=7"
 ```
 
 ![News by Date API](docs/api-screenshots/获取指定日期的新闻.png)
@@ -435,7 +430,6 @@ curl -X GET "http://localhost:9998/api/stock/news/date?symbol=000001&target_date
 #### 使用示例
 ```bash
 curl -X GET "http://localhost:9998/api/calendar/trading-days?symbol=000001&start_date=2025-01-01&end_date=2025-09-01" \
-  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
 ```
 
 ![Trading Days API](docs/api-screenshots/获取指定股票的交易日列表.png)
@@ -459,7 +453,6 @@ curl -X GET "http://localhost:9998/api/calendar/trading-days?symbol=000001&start
 #### 使用示例
 ```bash
 curl -X GET "http://localhost:9998/api/calendar/is-trading-day?symbol=000001&check_date=2025-09-30" \
-  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
 ```
 
 </details>
@@ -481,7 +474,6 @@ curl -X GET "http://localhost:9998/api/calendar/is-trading-day?symbol=000001&che
 #### 使用示例
 ```bash
 curl -X GET "http://localhost:9998/api/calendar/trading-hours?symbol=000001&check_date=2025-09-30" \
-  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
 ```
 
 </details>
@@ -520,7 +512,6 @@ curl -X GET "http://localhost:9998/api/calendar/trading-hours?symbol=000001&chec
 #### 使用示例
 ```bash
 curl -X GET "http://localhost:9998/api/calendar/supported-exchanges" \
-  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
 ```
 
 ![Supported Exchanges API](docs/api-screenshots/获取支持的交易所列表.png)
@@ -565,7 +556,6 @@ curl -X GET "http://localhost:9998/api/calendar/supported-exchanges" \
 #### 使用示例
 ```bash
 curl -X GET "http://localhost:9998/api/macro/gdp?start_date=2020-01-01&end_date=2024-12-31" \
-  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
 ```
 
 </details>
@@ -606,7 +596,6 @@ curl -X GET "http://localhost:9998/api/macro/gdp?start_date=2020-01-01&end_date=
 #### 使用示例
 ```bash
 curl -X GET "http://localhost:9998/api/macro/cpi?start_date=2020-01-01&end_date=2024-12-31" \
-  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
 ```
 
 </details>
@@ -628,7 +617,6 @@ curl -X GET "http://localhost:9998/api/macro/cpi?start_date=2020-01-01&end_date=
 #### 使用示例
 ```bash
 curl -X GET "http://localhost:9998/api/macro/pmi?start_date=2020-01-01&end_date=2024-12-31" \
-  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
 ```
 
 </details>
@@ -650,7 +638,6 @@ curl -X GET "http://localhost:9998/api/macro/pmi?start_date=2020-01-01&end_date=
 #### 使用示例
 ```bash
 curl -X GET "http://localhost:9998/api/macro/ppi?start_date=2020-01-01&end_date=2024-12-31" \
-  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
 ```
 
 </details>
@@ -672,7 +659,6 @@ curl -X GET "http://localhost:9998/api/macro/ppi?start_date=2020-01-01&end_date=
 #### 使用示例
 ```bash
 curl -X GET "http://localhost:9998/api/macro/money-supply?start_date=2020-01-01&end_date=2024-12-31" \
-  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
 ```
 
 </details>
@@ -694,7 +680,6 @@ curl -X GET "http://localhost:9998/api/macro/money-supply?start_date=2020-01-01&
 #### 使用示例
 ```bash
 curl -X GET "http://localhost:9998/api/macro/lpr?start_date=2020-01-01&end_date=2024-12-31" \
-  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
 ```
 
 </details>
@@ -716,7 +701,6 @@ curl -X GET "http://localhost:9998/api/macro/lpr?start_date=2020-01-01&end_date=
 #### 使用示例
 ```bash
 curl -X GET "http://localhost:9998/api/macro/social-financing?start_date=2020-01-01&end_date=2024-12-31" \
-  -H "Authorization: a7f3518b-2983-4d29-bd1d-15a13e470903"
 ```
 
 </details>
