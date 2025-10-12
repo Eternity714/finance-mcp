@@ -5,6 +5,8 @@ HTTP POST API 路由
 
 import logging
 from typing import List
+import pandas as pd
+import numpy as np
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -12,6 +14,7 @@ from pydantic import BaseModel
 # 导入服务
 from ..services.quote_service import QuoteService, StockMarketDataDTO
 from ..services.calendar_service import CalendarService
+from ..services.macro.macro_service import get_macro_service
 
 # 导入响应封装器
 from ..utils.response_wrapper import success_response, error_response
@@ -21,6 +24,78 @@ router = APIRouter()
 
 # 初始化服务实例
 calendar_service = CalendarService()
+macro_service = get_macro_service()
+
+
+def clean_dataframe_for_json(df: pd.DataFrame) -> list:
+    """
+    清理DataFrame中的无效浮点数值，使其符合JSON标准
+
+    Args:
+        df: 要清理的DataFrame
+
+    Returns:
+        清理后的dict列表
+    """
+    if df.empty:
+        return []
+
+    try:
+        # 清理无效的浮点数值
+        df_cleaned = df.copy()
+
+        # 处理无穷大值
+        df_cleaned = df_cleaned.replace([np.inf, -np.inf], None)
+
+        # 将NaN替换为None
+        df_cleaned = df_cleaned.where(pd.notna(df_cleaned), None)
+
+        # 转换为dict列表
+        records = df_cleaned.to_dict("records")
+
+        # 进一步清理每个记录中的数值
+        cleaned_records = []
+        for record in records:
+            cleaned_record = {}
+            for key, value in record.items():
+                if value is None:
+                    cleaned_record[key] = None
+                elif isinstance(value, (int, float)):
+                    # 检查是否是有效的JSON数值
+                    if np.isnan(value) or np.isinf(value):
+                        cleaned_record[key] = None
+                    else:
+                        cleaned_record[key] = value
+                else:
+                    cleaned_record[key] = value
+            cleaned_records.append(cleaned_record)
+
+        return cleaned_records
+
+    except Exception as e:
+        logger.error(f"❌ 清理DataFrame失败: {e}")
+        # 降级处理：逐一检查和清理
+        try:
+            records = df.to_dict("records")
+            cleaned_records = []
+            for record in records:
+                cleaned_record = {}
+                for key, value in record.items():
+                    try:
+                        if pd.isna(value) or (
+                            isinstance(value, float)
+                            and (np.isnan(value) or np.isinf(value))
+                        ):
+                            cleaned_record[key] = None
+                        else:
+                            cleaned_record[key] = value
+                    except (TypeError, ValueError):
+                        cleaned_record[key] = str(value) if value is not None else None
+                cleaned_records.append(cleaned_record)
+            return cleaned_records
+        except Exception as e2:
+            logger.error(f"❌ DataFrame转换失败: {e2}")
+            return []
 
 
 @router.get("/stock/price")
@@ -273,3 +348,377 @@ async def get_supported_exchanges():
     except Exception as e:
         logger.error(f"获取交易所列表失败: {e}")
         raise HTTPException(status_code=500, detail="服务器内部错误")
+
+
+# ==================== 宏观数据 API 端点 ====================
+
+
+@router.get("/macro/smart-dashboard")
+async def get_smart_macro_dashboard():
+    """
+    获取智能宏观数据仪表板 - 自动聚合各指标的最佳期数数据
+
+    自动为不同指标设置最佳的默认期数：
+    - GDP: 最近4个季度 (1年)
+    - CPI/PPI: 最近12个月 (1年)
+    - PMI: 最近12个月 (1年)
+    - 货币供应量: 最近12个月 (1年)
+    - 社会融资: 最近12个月 (1年)
+    - LPR: 最近12期 (通常月度发布)
+
+    Returns:
+        包含所有主要宏观指标数据的统一响应
+    """
+    try:
+        dashboard_data = macro_service.get_macro_dashboard_data()
+
+        # 转换DataFrame为dict，使用数据清理函数
+        result = {"data": {}, "metadata": dashboard_data["metadata"]}
+
+        for indicator, df in dashboard_data["data"].items():
+            result["data"][indicator] = clean_dataframe_for_json(df)
+
+        total_records = sum(len(data) for data in result["data"].values())
+
+        return success_response(
+            data=result,
+            message=(
+                f"成功获取智能宏观数据仪表板，"
+                f"共{len(result['data'])}个指标，{total_records}条记录"
+            ),
+        )
+
+    except Exception as e:
+        logger.error(f"获取智能宏观数据仪表板失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/macro/gdp")
+async def get_gdp_data(
+    periods: int = None, start_quarter: str = None, end_quarter: str = None
+):
+    """获取GDP数据"""
+    try:
+        # 参数校验：periods 和 start/end_quarter 是互斥的
+        if periods is not None and (
+            start_quarter is not None or end_quarter is not None
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="参数错误: 'periods' 不能与 'start_quarter'/'end_quarter' 同时使用。",
+            )
+
+        data = macro_service.get_gdp(
+            periods=periods, start_quarter=start_quarter, end_quarter=end_quarter
+        )
+
+        # 使用数据清理函数
+        result = clean_dataframe_for_json(data)
+
+        return success_response(
+            data=result, message=f"成功获取GDP数据，共{len(result)}条记录"
+        )
+
+    except Exception as e:
+        logger.error(f"获取GDP数据失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/macro/cpi")
+async def get_cpi_data(
+    periods: int = None, start_month: str = None, end_month: str = None
+):
+    """获取CPI数据"""
+    try:
+        data = macro_service.get_cpi(
+            periods=periods, start_month=start_month, end_month=end_month
+        )
+
+        # 使用数据清理函数
+        result = clean_dataframe_for_json(data)
+
+        return success_response(
+            data=result, message=f"成功获取CPI数据，共{len(result)}条记录"
+        )
+
+    except Exception as e:
+        logger.error(f"获取CPI数据失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/macro/ppi")
+async def get_ppi_data(
+    periods: int = None, start_month: str = None, end_month: str = None
+):
+    """获取PPI数据"""
+    try:
+        data = macro_service.get_ppi(
+            periods=periods, start_month=start_month, end_month=end_month
+        )
+
+        # 使用数据清理函数
+        result = clean_dataframe_for_json(data)
+
+        return success_response(
+            data=result, message=f"成功获取PPI数据，共{len(result)}条记录"
+        )
+
+    except Exception as e:
+        logger.error(f"获取PPI数据失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/macro/pmi")
+async def get_pmi_data(
+    periods: int = None, start_month: str = None, end_month: str = None
+):
+    """获取PMI数据"""
+    try:
+        data = macro_service.get_pmi(
+            periods=periods, start_month=start_month, end_month=end_month
+        )
+
+        # 使用数据清理函数
+        result = clean_dataframe_for_json(data)
+
+        return success_response(
+            data=result, message=f"成功获取PMI数据，共{len(result)}条记录"
+        )
+
+    except Exception as e:
+        logger.error(f"获取PMI数据失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/macro/money-supply")
+async def get_money_supply_data(
+    periods: int = None, start_month: str = None, end_month: str = None
+):
+    """获取货币供应量数据"""
+    try:
+        data = macro_service.get_money_supply(
+            periods=periods, start_month=start_month, end_month=end_month
+        )
+
+        # 使用数据清理函数
+        result = clean_dataframe_for_json(data)
+
+        return success_response(
+            data=result, message=f"成功获取货币供应量数据，共{len(result)}条记录"
+        )
+
+    except Exception as e:
+        logger.error(f"获取货币供应量数据失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/macro/social-financing")
+async def get_social_financing_data(
+    periods: int = None, start_month: str = None, end_month: str = None
+):
+    """获取社会融资数据"""
+    try:
+        data = macro_service.get_social_financing(
+            periods=periods, start_month=start_month, end_month=end_month
+        )
+
+        # 使用数据清理函数
+        result = clean_dataframe_for_json(data)
+
+        return success_response(
+            data=result, message=f"成功获取社会融资数据，共{len(result)}条记录"
+        )
+
+    except Exception as e:
+        logger.error(f"获取社会融资数据失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/macro/lpr")
+async def get_lpr_data(
+    periods: int = None, start_date: str = None, end_date: str = None
+):
+    """获取LPR数据"""
+    try:
+        data = macro_service.get_lpr(
+            periods=periods, start_date=start_date, end_date=end_date
+        )
+
+        # 使用数据清理函数
+        result = clean_dataframe_for_json(data)
+
+        return success_response(
+            data=result, message=f"成功获取LPR数据，共{len(result)}条记录"
+        )
+
+    except Exception as e:
+        logger.error(f"获取LPR数据失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== 宏观数据组合API ====================
+
+
+@router.get("/macro/economic-cycle")
+async def get_economic_cycle_data(start: str, end: str):
+    """获取经济周期相关数据（GDP + PMI + CPI）"""
+    try:
+        if not start or not end:
+            raise HTTPException(status_code=400, detail="缺少start或end参数")
+
+        data = macro_service.get_economic_cycle_data(start, end)
+
+        # 转换DataFrame为dict，使用数据清理函数
+        result = {}
+        for key, df in data.items():
+            result[key] = clean_dataframe_for_json(df)
+
+        return success_response(
+            data=result, message=f"成功获取经济周期数据 ({start} - {end})"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取经济周期数据失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/macro/monetary-policy")
+async def get_monetary_policy_data(start: str, end: str):
+    """获取货币政策相关数据（货币供应量 + 社融 + LPR）"""
+    try:
+        if not start or not end:
+            raise HTTPException(status_code=400, detail="缺少start或end参数")
+
+        data = macro_service.get_monetary_policy_data(start, end)
+
+        result = {}
+        for key, df in data.items():
+            result[key] = clean_dataframe_for_json(df)
+
+        return success_response(
+            data=result, message=f"成功获取货币政策数据 ({start} - {end})"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取货币政策数据失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/macro/inflation")
+async def get_inflation_data(start: str, end: str):
+    """获取通胀相关数据（CPI + PPI）"""
+    try:
+        if not start or not end:
+            raise HTTPException(status_code=400, detail="缺少start或end参数")
+
+        data = macro_service.get_inflation_data(start, end)
+
+        result = {}
+        for key, df in data.items():
+            result[key] = clean_dataframe_for_json(df)
+
+        return success_response(
+            data=result, message=f"成功获取通胀数据 ({start} - {end})"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取通胀数据失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/macro/latest")
+async def get_latest_macro_data(periods: int = 1):
+    """获取所有宏观指标的最新数据"""
+    try:
+        data = macro_service.get_latest_all_indicators(periods=periods)
+
+        result = {}
+        for key, df in data.items():
+            result[key] = clean_dataframe_for_json(df)
+
+        return success_response(
+            data=result, message=f"成功获取所有宏观指标最新{periods}期数据"
+        )
+
+    except Exception as e:
+        logger.error(f"获取最新宏观数据失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== 宏观数据同步管理API ====================
+
+
+@router.post("/macro/sync")
+async def trigger_macro_sync(indicator: str = None, force: bool = False):
+    """手动触发宏观数据同步"""
+    try:
+        result = macro_service.manual_sync(indicator=indicator, force=force)
+
+        return success_response(
+            data=result, message=f"成功触发{'全量' if not indicator else indicator}同步"
+        )
+
+    except Exception as e:
+        logger.error(f"触发同步失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/macro/sync/status")
+async def get_macro_sync_status():
+    """获取宏观数据同步状态"""
+    try:
+        status = macro_service.get_sync_status()
+
+        return success_response(data=status, message="成功获取同步状态")
+
+    except Exception as e:
+        logger.error(f"获取同步状态失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/macro/health")
+async def get_macro_service_health():
+    """获取宏观数据服务健康状态"""
+    try:
+        health = macro_service.get_service_health()
+
+        return success_response(data=health, message="成功获取服务健康状态")
+
+    except Exception as e:
+        logger.error(f"获取服务健康状态失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/macro/cache")
+async def clear_macro_cache(indicator: str = None):
+    """清除宏观数据缓存"""
+    try:
+        macro_service.clear_cache(indicator=indicator)
+
+        return success_response(
+            data={"cleared": indicator or "all"},
+            message=f"成功清除{'全部' if not indicator else indicator}缓存",
+        )
+
+    except Exception as e:
+        logger.error(f"清除缓存失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/macro/cache/stats")
+async def get_macro_cache_stats():
+    """获取宏观数据缓存统计"""
+    try:
+        stats = macro_service.get_cache_stats()
+
+        return success_response(data=stats, message="成功获取缓存统计信息")
+
+    except Exception as e:
+        logger.error(f"获取缓存统计失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

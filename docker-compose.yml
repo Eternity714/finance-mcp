@@ -20,6 +20,45 @@ services:
       timeout: 3s
       retries: 3
 
+  # MySQL 服务 - 用于数据存储
+  mysql:
+    image: mysql:8.0
+    container_name: stock-mcp-mysql
+    restart: unless-stopped
+    ports:
+      - "3307:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=123456hwh
+      - MYSQL_DATABASE=stock_mcp
+      - MYSQL_USER=stock_user
+      - MYSQL_PASSWORD=123456hwh
+      - TZ=Asia/Shanghai
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./scripts/init_mysql.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    networks:
+      - stock-network
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --max_connections=1000
+      - --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "stock_user",
+          "-pstock_password",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # 股票 MCP 服务
   stock-mcp:
     build:
@@ -52,6 +91,13 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_DB=0
+
+      # MySQL 配置
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=stock_user
+      - MYSQL_PASSWORD=123456hwh
+      - MYSQL_DATABASE=stock_mcp
 
       # 代理配置（访问国外数据源如 yfinance）
       # 容器访问宿主机代理使用 host.docker.internal
@@ -88,8 +134,12 @@ services:
     volumes:
       # 如果需要持久化日志，可以挂载日志目录
       - ./logs:/app/logs
+      # 挂载本地数据目录（宏观数据CSV文件）
+      - ./data:/app/data
     depends_on:
       redis:
+        condition: service_healthy
+      mysql:
         condition: service_healthy
     networks:
       - stock-network
@@ -110,3 +160,5 @@ networks:
 volumes:
   redis_data:
     name: stock-mcp-redis-data
+  mysql_data:
+    name: stock-mcp-mysql-data

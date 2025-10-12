@@ -1,0 +1,1590 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API 测试工具</title>
+    <!-- 引入marked.js用于Markdown解析 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 100;
+        }
+
+        .header h1 {
+            font-size: 1.8em;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        .header p {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* 左侧API列表 */
+        .api-sidebar {
+            width: 450px;
+            background: white;
+            border-right: 1px solid #e9ecef;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        .api-category {
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .category-header {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            font-weight: 600;
+            color: #495057;
+            border-bottom: 1px solid #e9ecef;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: background-color 0.2s;
+        }
+
+        .category-header:hover {
+            background: #e9ecef;
+        }
+
+        .category-header.active {
+            background: #007bff;
+            color: white;
+        }
+
+        .category-icon {
+            font-size: 1.2em;
+            margin-right: 10px;
+        }
+
+        .collapse-icon {
+            transition: transform 0.3s;
+        }
+
+        .collapse-icon.collapsed {
+            transform: rotate(-90deg);
+        }
+
+        .api-list {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .api-list.show {
+            max-height: 1000px;
+        }
+
+        .api-item {
+            padding: 12px 20px;
+            border-bottom: 1px solid #f1f3f4;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .api-item:hover {
+            background: #f8f9fa;
+            padding-left: 25px;
+        }
+
+        .api-item.active {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            color: #1976d2;
+        }
+
+        .method-badge {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.7em;
+            font-weight: bold;
+            min-width: 40px;
+            text-align: center;
+        }
+
+        .method-get {
+            background: #4caf50;
+            color: white;
+        }
+
+        .method-post {
+            background: #ff9800;
+            color: white;
+        }
+
+        .method-delete {
+            background: #f44336;
+            color: white;
+        }
+
+        .api-name {
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+
+        /* 右侧测试区域 */
+        .test-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: white;
+        }
+
+        .test-header {
+            padding: 20px;
+            border-bottom: 1px solid #e9ecef;
+            background: #fafbfc;
+        }
+
+        .test-title {
+            font-size: 1.4em;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+
+        .test-description {
+            color: #6c757d;
+            font-size: 0.95em;
+        }
+
+        .test-body {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .params-section {
+            width: 350px;
+            padding: 20px;
+            border-right: 1px solid #e9ecef;
+            overflow-y: auto;
+            background: #fafbfc;
+        }
+
+        .params-title {
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #495057;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #495057;
+            font-size: 0.9em;
+        }
+
+        .input-group input,
+        .input-group select,
+        .input-group textarea {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 13px;
+            transition: border-color 0.2s;
+        }
+
+        .input-group input:focus,
+        .input-group select:focus,
+        .input-group textarea:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+        }
+
+        .input-group textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+
+        .test-btn {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .test-btn:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+        }
+
+        .test-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .results-section {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .results-title {
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #495057;
+        }
+
+        .response-container {
+            background: #f8f9fa;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid #dee2e6;
+            margin-bottom: 15px;
+        }
+
+        .response-header {
+            background: #e9ecef;
+            padding: 12px 15px;
+            font-weight: 600;
+            color: #495057;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .response-body {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            max-height: 500px;
+            overflow-y: auto;
+            line-height: 1.5;
+        }
+
+        /* 响应分离展示样式 */
+        .response-section {
+            margin-bottom: 15px;
+        }
+
+        .response-section h4 {
+            margin: 0 0 10px 0;
+            padding: 8px 12px;
+            background: #e9ecef;
+            border-radius: 4px 4px 0 0;
+            font-size: 14px;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .response-content {
+            padding: 15px;
+            border: 1px solid #dee2e6;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            background: white;
+        }
+
+        .response-content.url {
+            background: #f8f9fa;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+            color: #0366d6;
+            word-break: break-all;
+            font-size: 13px;
+        }
+
+        .response-content.json {
+            background: #2d3748;
+            color: #e2e8f0;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+        }
+
+        .response-content.markdown {
+            background: white;
+            color: #333;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+        }
+
+        /* Markdown样式 */
+        .markdown-content h1,
+        .markdown-content h2,
+        .markdown-content h3,
+        .markdown-content h4,
+        .markdown-content h5,
+        .markdown-content h6 {
+            margin: 20px 0 10px 0;
+            font-weight: 600;
+            line-height: 1.25;
+        }
+
+        .markdown-content h1 {
+            font-size: 2em;
+            border-bottom: 1px solid #eaecef;
+            padding-bottom: 0.3em;
+        }
+
+        .markdown-content h2 {
+            font-size: 1.5em;
+            border-bottom: 1px solid #eaecef;
+            padding-bottom: 0.3em;
+        }
+
+        .markdown-content h3 {
+            font-size: 1.25em;
+        }
+
+        .markdown-content h4 {
+            font-size: 1em;
+        }
+
+        .markdown-content h5 {
+            font-size: 0.875em;
+        }
+
+        .markdown-content h6 {
+            font-size: 0.85em;
+            color: #6a737d;
+        }
+
+        .markdown-content p {
+            margin: 0 0 16px 0;
+        }
+
+        .markdown-content ul,
+        .markdown-content ol {
+            margin: 0 0 16px 0;
+            padding-left: 2em;
+        }
+
+        .markdown-content li {
+            margin: 0.25em 0;
+        }
+
+        .markdown-content table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 16px 0;
+        }
+
+        .markdown-content th,
+        .markdown-content td {
+            border: 1px solid #dfe2e5;
+            padding: 6px 13px;
+            text-align: left;
+        }
+
+        .markdown-content th {
+            background: #f6f8fa;
+            font-weight: 600;
+        }
+
+        .markdown-content code {
+            background: #f6f8fa;
+            padding: 0.2em 0.4em;
+            border-radius: 3px;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+            font-size: 85%;
+        }
+
+        .markdown-content pre {
+            background: #f6f8fa;
+            padding: 16px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 16px 0;
+        }
+
+        .markdown-content pre code {
+            background: none;
+            padding: 0;
+        }
+
+        .markdown-content blockquote {
+            border-left: 4px solid #dfe2e5;
+            padding: 0 1em;
+            margin: 16px 0;
+            color: #6a737d;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-badge.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status-badge.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .status-success {
+            color: #28a745;
+            font-weight: 600;
+        }
+
+        .status-error {
+            color: #dc3545;
+            font-weight: 600;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6c757d;
+        }
+
+        .empty-state h3 {
+            margin-bottom: 10px;
+            color: #495057;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .main-content {
+                flex-direction: column;
+            }
+
+            .api-sidebar {
+                width: 100%;
+                height: 300px;
+            }
+
+            .test-body {
+                flex-direction: column;
+            }
+
+            .params-section {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid #e9ecef;
+            }
+        }
+
+        /* JSON语法高亮 */
+        .json-key {
+            color: #79b8ff;
+        }
+
+        .json-string {
+            color: #88c999;
+        }
+
+        .json-number {
+            color: #ffab70;
+        }
+
+        .json-boolean {
+            color: #ff7b7b;
+        }
+
+        .json-null {
+            color: #969696;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 API 测试工具</h1>
+            <p>测试所有可用的 API 端点</p>
+        </div>
+
+        <div class="main-content">
+            <!-- 左侧API列表 -->
+            <div class="api-sidebar">
+                <!-- 股票相关API -->
+                <div class="api-category">
+                    <div class="category-header" onclick="toggleCategory('stock')">
+                        <div>
+                            <span class="category-icon">📈</span>
+                            股票相关 API
+                        </div>
+                        <span class="collapse-icon">▼</span>
+                    </div>
+                    <div class="api-list show" id="stock-apis">
+                        <div class="api-item" onclick="selectAPI('stock-quote')">
+                            <span class="method-badge method-get">GET</span>
+                            <span class="api-name">获取股票行情</span>
+                        </div>
+                        <div class="api-item" onclick="selectAPI('stock-quotes')">
+                            <span class="method-badge method-post">POST</span>
+                            <span class="api-name">批量获取行情</span>
+                        </div>
+                        <div class="api-item" onclick="selectAPI('stock-price')">
+                            <span class="method-badge method-get">GET</span>
+                            <span class="api-name">股票价格数据</span>
+                        </div>
+                        <div class="api-item" onclick="selectAPI('stock-fundamental')">
+                            <span class="method-badge method-get">GET</span>
+                            <span class="api-name">基本面分析</span>
+                        </div>
+                        <div class="api-item" onclick="selectAPI('stock-news')">
+                            <span class="method-badge method-get">GET</span>
+                            <span class="api-name">股票新闻</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 宏观数据API -->
+                <div class="api-category">
+                    <div class="category-header" onclick="toggleCategory('macro')">
+                        <div>
+                            <span class="category-icon">📊</span>
+                            宏观数据 API
+                        </div>
+                        <span class="collapse-icon">▼</span>
+                    </div>
+                    <div class="api-list show" id="macro-apis">
+                        <div class="api-item" onclick="selectAPI('macro-dashboard')">
+                            <span class="method-badge method-get">GET</span>
+                            <span class="api-name">智能宏观数据仪表板</span>
+                        </div>
+                        <div class="api-item" onclick="selectAPI('macro-latest')">
+                            <span class="method-badge method-get">GET</span>
+                            <span class="api-name">最新宏观数据</span>
+                        </div>
+                        <div class="api-item" onclick="selectAPI('macro-gdp')">
+                            <span class="method-badge method-get">GET</span>
+                            <span class="api-name">GDP数据</span>
+                        </div>
+                        <div class="api-item" onclick="selectAPI('macro-cpi')">
+                            <span class="method-badge method-get">GET</span>
+                            <span class="api-name">CPI数据</span>
+                        </div>
+                        <div class="api-item" onclick="selectAPI('macro-ppi')">
+                            <span class="method-badge method-get">GET</span>
+                            <span class="api-name">PPI数据</span>
+                        </div>
+                        <div class="api-item" onclick="selectAPI('macro-pmi')">
+                            <span class="method-badge method-get">GET</span>
+                            <span class="api-name">PMI数据</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 交易日历API -->
+                <div class="api-category">
+                    <div class="category-header" onclick="toggleCategory('calendar')">
+                        <div>
+                            <span class="category-icon">📅</span>
+                            交易日历 API
+                        </div>
+                        <span class="collapse-icon">▼</span>
+                    </div>
+                    <div class="api-list show" id="calendar-apis">
+                        <div class="api-item" onclick="selectAPI('calendar-trading-days')">
+                            <span class="method-badge method-get">GET</span>
+                            <span class="api-name">获取交易日</span>
+                        </div>
+                        <div class="api-item" onclick="selectAPI('calendar-is-trading-day')">
+                            <span class="method-badge method-get">GET</span>
+                            <span class="api-name">检查交易日</span>
+                        </div>
+                        <div class="api-item" onclick="selectAPI('calendar-supported-exchanges')">
+                            <span class="method-badge method-get">GET</span>
+                            <span class="api-name">支持的交易所</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 系统管理API -->
+                <div class="api-category">
+                    <div class="category-header" onclick="toggleCategory('system')">
+                        <div>
+                            <span class="category-icon">⚙️</span>
+                            系统管理 API
+                        </div>
+                        <span class="collapse-icon">▼</span>
+                    </div>
+                    <div class="api-list show" id="system-apis">
+                        <div class="api-item" onclick="selectAPI('macro-health')">
+                            <span class="method-badge method-get">GET</span>
+                            <span class="api-name">系统健康状态</span>
+                        </div>
+                        <div class="api-item" onclick="selectAPI('macro-sync-status')">
+                            <span class="method-badge method-get">GET</span>
+                            <span class="api-name">同步状态</span>
+                        </div>
+                        <div class="api-item" onclick="selectAPI('macro-sync')">
+                            <span class="method-badge method-post">POST</span>
+                            <span class="api-name">触发同步</span>
+                        </div>
+                        <div class="api-item" onclick="selectAPI('macro-cache-stats')">
+                            <span class="method-badge method-get">GET</span>
+                            <span class="api-name">缓存统计</span>
+                        </div>
+                        <div class="api-item" onclick="selectAPI('macro-clear-cache')">
+                            <span class="method-badge method-delete">DELETE</span>
+                            <span class="api-name">清除缓存</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧测试区域 -->
+            <div class="test-area">
+                <div class="test-header">
+                    <h2 class="test-title" id="api-title">请选择一个API接口</h2>
+                    <p class="test-description" id="api-description">从左侧列表中选择要测试的API接口</p>
+                </div>
+
+                <div class="test-body">
+                    <div class="params-section">
+                        <h3 class="params-title">请求参数</h3>
+                        <div id="params-container">
+                            <div class="empty-state">
+                                <h3>未选择接口</h3>
+                                <p>请从左侧列表选择要测试的API接口</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="results-section">
+                        <h3 class="results-title">响应结果</h3>
+                        <div id="results-container">
+                            <div class="empty-state">
+                                <h3>等待测试</h3>
+                                <p>选择接口并填写参数后点击测试按钮</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- 股票相关API -->
+    <div class="api-section">
+        <h3 class="section-title">📈 股票相关 API</h3>
+
+        <div class="api-item">
+            <div class="api-title">
+                <span class="method-badge method-get">GET</span>
+                获取股票行情
+            </div>
+            <div class="api-description">获取股票的实时或近实时行情数据</div>
+            <div class="input-group">
+                <label>股票代码:</label>
+                <input type="text" id="stock-quote-symbol" placeholder="例: 000001, AAPL, 00700" value="000001">
+            </div>
+            <button class="btn" onclick="testAPI('stock-quote')">测试接口</button>
+            <div class="response-container" id="stock-quote-response"></div>
+        </div>
+
+        <div class="api-item">
+            <div class="api-title">
+                <span class="method-badge method-post">POST</span>
+                批量获取行情
+            </div>
+            <div class="api-description">批量获取多个股票的行情数据</div>
+            <div class="input-group">
+                <label>股票代码列表 (JSON格式):</label>
+                <textarea id="stock-quotes-symbols"
+                    placeholder='{"symbols": ["000001", "000002", "AAPL"]}'>{"symbols": ["000001", "000002"]}</textarea>
+            </div>
+            <button class="btn" onclick="testAPI('stock-quotes')">测试接口</button>
+            <div class="response-container" id="stock-quotes-response"></div>
+        </div>
+
+        <div class="api-item">
+            <div class="api-title">
+                <span class="method-badge method-get">GET</span>
+                股票价格数据
+            </div>
+            <div class="api-description">获取股票价格数据和分析报告</div>
+            <div class="input-group">
+                <label>股票代码:</label>
+                <input type="text" id="stock-price-symbol" placeholder="例: 000001" value="000001">
+            </div>
+            <div class="input-group">
+                <label>开始日期:</label>
+                <input type="date" id="stock-price-start" value="2024-01-01">
+            </div>
+            <div class="input-group">
+                <label>结束日期:</label>
+                <input type="date" id="stock-price-end" value="2024-12-31">
+            </div>
+            <button class="btn" onclick="testAPI('stock-price')">测试接口</button>
+            <div class="response-container" id="stock-price-response"></div>
+        </div>
+
+        <div class="api-item">
+            <div class="api-title">
+                <span class="method-badge method-get">GET</span>
+                基本面分析
+            </div>
+            <div class="api-description">获取股票基本面财务报告</div>
+            <div class="input-group">
+                <label>股票代码:</label>
+                <input type="text" id="stock-fundamental-symbol" placeholder="例: 000001" value="000001">
+            </div>
+            <button class="btn" onclick="testAPI('stock-fundamental')">测试接口</button>
+            <div class="response-container" id="stock-fundamental-response"></div>
+        </div>
+
+        <div class="api-item">
+            <div class="api-title">
+                <span class="method-badge method-get">GET</span>
+                股票新闻
+            </div>
+            <div class="api-description">获取股票最新新闻</div>
+            <div class="input-group">
+                <label>股票代码:</label>
+                <input type="text" id="stock-news-symbol" placeholder="例: 000001" value="000001">
+            </div>
+            <div class="input-group">
+                <label>查询天数:</label>
+                <input type="number" id="stock-news-days" value="30" min="1" max="90">
+            </div>
+            <button class="btn" onclick="testAPI('stock-news')">测试接口</button>
+            <div class="response-container" id="stock-news-response"></div>
+        </div>
+    </div>
+
+    <!-- 宏观数据API -->
+    <div class="api-section">
+        <h3 class="section-title">📊 宏观数据 API</h3>
+
+        <div class="api-item">
+            <div class="api-title">
+                <span class="method-badge method-get">GET</span>
+                智能宏观数据仪表板
+            </div>
+            <div class="api-description">获取所有主要宏观指标的最佳期数数据</div>
+            <button class="btn" onclick="testAPI('macro-dashboard')">测试接口</button>
+            <div class="response-container" id="macro-dashboard-response"></div>
+        </div>
+
+        <div class="api-item">
+            <div class="api-title">
+                <span class="method-badge method-get">GET</span>
+                最新宏观数据
+            </div>
+            <div class="api-description">获取所有宏观指标的最新数据</div>
+            <div class="input-group">
+                <label>期数:</label>
+                <input type="number" id="macro-latest-periods" value="1" min="1" max="50">
+            </div>
+            <button class="btn" onclick="testAPI('macro-latest')">测试接口</button>
+            <div class="response-container" id="macro-latest-response"></div>
+        </div>
+
+        <div class="api-item">
+            <div class="api-title">
+                <span class="method-badge method-get">GET</span>
+                GDP数据
+            </div>
+            <div class="api-description">获取GDP数据</div>
+            <div class="input-group">
+                <label>期数:</label>
+                <input type="number" id="macro-gdp-periods" value="4" min="1" max="20">
+            </div>
+            <button class="btn" onclick="testAPI('macro-gdp')">测试接口</button>
+            <div class="response-container" id="macro-gdp-response"></div>
+        </div>
+
+        <div class="api-item">
+            <div class="api-title">
+                <span class="method-badge method-get">GET</span>
+                CPI数据
+            </div>
+            <div class="api-description">获取CPI数据</div>
+            <div class="input-group">
+                <label>期数:</label>
+                <input type="number" id="macro-cpi-periods" value="12" min="1" max="50">
+            </div>
+            <button class="btn" onclick="testAPI('macro-cpi')">测试接口</button>
+            <div class="response-container" id="macro-cpi-response"></div>
+        </div>
+
+        <div class="api-item">
+            <div class="api-title">
+                <span class="method-badge method-get">GET</span>
+                PPI数据
+            </div>
+            <div class="api-description">获取PPI数据</div>
+            <div class="input-group">
+                <label>期数:</label>
+                <input type="number" id="macro-ppi-periods" value="12" min="1" max="50">
+            </div>
+            <button class="btn" onclick="testAPI('macro-ppi')">测试接口</button>
+            <div class="response-container" id="macro-ppi-response"></div>
+        </div>
+
+        <div class="api-item">
+            <div class="api-title">
+                <span class="method-badge method-get">GET</span>
+                PMI数据
+            </div>
+            <div class="api-description">获取PMI数据</div>
+            <div class="input-group">
+                <label>期数:</label>
+                <input type="number" id="macro-pmi-periods" value="12" min="1" max="50">
+            </div>
+            <button class="btn" onclick="testAPI('macro-pmi')">测试接口</button>
+            <div class="response-container" id="macro-pmi-response"></div>
+        </div>
+    </div>
+
+    <!-- 交易日历API -->
+    <div class="api-section">
+        <h3 class="section-title">📅 交易日历 API</h3>
+
+        <div class="api-item">
+            <div class="api-title">
+                <span class="method-badge method-get">GET</span>
+                获取交易日
+            </div>
+            <div class="api-description">获取指定股票的交易日列表</div>
+            <div class="input-group">
+                <label>股票代码:</label>
+                <input type="text" id="calendar-trading-days-symbol" placeholder="例: 000001" value="000001">
+            </div>
+            <div class="input-group">
+                <label>开始日期:</label>
+                <input type="date" id="calendar-trading-days-start" value="2024-01-01">
+            </div>
+            <div class="input-group">
+                <label>结束日期:</label>
+                <input type="date" id="calendar-trading-days-end" value="2024-01-31">
+            </div>
+            <button class="btn" onclick="testAPI('calendar-trading-days')">测试接口</button>
+            <div class="response-container" id="calendar-trading-days-response"></div>
+        </div>
+
+        <div class="api-item">
+            <div class="api-title">
+                <span class="method-badge method-get">GET</span>
+                检查交易日
+            </div>
+            <div class="api-description">检查指定日期是否为交易日</div>
+            <div class="input-group">
+                <label>股票代码:</label>
+                <input type="text" id="calendar-is-trading-day-symbol" placeholder="例: 000001" value="000001">
+            </div>
+            <div class="input-group">
+                <label>检查日期:</label>
+                <input type="date" id="calendar-is-trading-day-date" value="2024-01-15">
+            </div>
+            <button class="btn" onclick="testAPI('calendar-is-trading-day')">测试接口</button>
+            <div class="response-container" id="calendar-is-trading-day-response"></div>
+        </div>
+
+        <div class="api-item">
+            <div class="api-title">
+                <span class="method-badge method-get">GET</span>
+                支持的交易所
+            </div>
+            <div class="api-description">获取支持的交易所列表</div>
+            <button class="btn" onclick="testAPI('calendar-supported-exchanges')">测试接口</button>
+            <div class="response-container" id="calendar-supported-exchanges-response"></div>
+        </div>
+    </div>
+
+    <!-- 系统管理API -->
+    <div class="api-section">
+        <h3 class="section-title">⚙️ 系统管理 API</h3>
+
+        <div class="api-item">
+            <div class="api-title">
+                <span class="method-badge method-get">GET</span>
+                系统健康状态
+            </div>
+            <div class="api-description">获取宏观数据服务健康状态</div>
+            <button class="btn" onclick="testAPI('macro-health')">测试接口</button>
+            <div class="response-container" id="macro-health-response"></div>
+        </div>
+
+        <div class="api-item">
+            <div class="api-title">
+                <span class="method-badge method-get">GET</span>
+                同步状态
+            </div>
+            <div class="api-description">获取宏观数据同步状态</div>
+            <button class="btn" onclick="testAPI('macro-sync-status')">测试接口</button>
+            <div class="response-container" id="macro-sync-status-response"></div>
+        </div>
+
+        <div class="api-item">
+            <div class="api-title">
+                <span class="method-badge method-post">POST</span>
+                触发同步
+            </div>
+            <div class="api-description">手动触发宏观数据同步</div>
+            <div class="input-group">
+                <label>指标名称 (可选):</label>
+                <select id="macro-sync-indicator">
+                    <option value="">全部指标</option>
+                    <option value="gdp">GDP</option>
+                    <option value="cpi">CPI</option>
+                    <option value="ppi">PPI</option>
+                    <option value="pmi">PMI</option>
+                    <option value="money_supply">货币供应量</option>
+                    <option value="social_financing">社会融资</option>
+                    <option value="lpr">LPR</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>
+                    <input type="checkbox" id="macro-sync-force"> 强制同步
+                </label>
+            </div>
+            <button class="btn" onclick="testAPI('macro-sync')">测试接口</button>
+            <div class="response-container" id="macro-sync-response"></div>
+        </div>
+
+        <div class="api-item">
+            <div class="api-title">
+                <span class="method-badge method-get">GET</span>
+                缓存统计
+            </div>
+            <div class="api-description">获取宏观数据缓存统计信息</div>
+            <button class="btn" onclick="testAPI('macro-cache-stats')">测试接口</button>
+            <div class="response-container" id="macro-cache-stats-response"></div>
+        </div>
+
+        <div class="api-item">
+            <div class="api-title">
+                <span class="method-badge method-delete">DELETE</span>
+                清除缓存
+            </div>
+            <div class="api-description">清除宏观数据缓存</div>
+            <div class="input-group">
+                <label>指标名称 (可选):</label>
+                <select id="macro-clear-cache-indicator">
+                    <option value="">全部缓存</option>
+                    <option value="gdp">GDP</option>
+                    <option value="cpi">CPI</option>
+                    <option value="ppi">PPI</option>
+                    <option value="pmi">PMI</option>
+                    <option value="money_supply">货币供应量</option>
+                    <option value="social_financing">社会融资</option>
+                    <option value="lpr">LPR</option>
+                </select>
+            </div>
+            <button class="btn" onclick="testAPI('macro-clear-cache')">测试接口</button>
+            <div class="response-container" id="macro-clear-cache-response"></div>
+        </div>
+    </div>
+    </div>
+    </div>
+    </div>
+
+    <script>
+        // 动态获取当前服务器URL
+        const SERVER_URL = `${window.location.protocol}//${window.location.host}`;
+
+        // API配置
+        const API_CONFIG = {
+            'stock-quote': {
+                title: '获取股票行情',
+                description: '获取股票的实时或近实时行情数据',
+                method: 'GET',
+                url: '/api/stock/quote',
+                params: [
+                    { name: 'symbol', label: '股票代码', type: 'text', required: true, placeholder: '例: 000001, AAPL', value: '000001' }
+                ]
+            },
+            'stock-quotes': {
+                title: '批量获取行情',
+                description: '批量获取多个股票的行情数据',
+                method: 'POST',
+                url: '/api/stock/quotes',
+                params: [
+                    { name: 'symbols', label: '股票代码列表', type: 'json', required: true, placeholder: '["000001", "000002"]', value: '["000001", "000002"]' }
+                ]
+            },
+            'stock-price': {
+                title: '股票价格数据',
+                description: '获取股票价格数据和分析报告',
+                method: 'GET',
+                url: '/api/stock/price',
+                params: [
+                    { name: 'symbol', label: '股票代码', type: 'text', required: true, placeholder: '例: 000001', value: '000001' },
+                    { name: 'start_date', label: '开始日期', type: 'date', required: true, value: '2024-01-01' },
+                    { name: 'end_date', label: '结束日期', type: 'date', required: true, value: '2024-12-31' }
+                ]
+            },
+            'stock-fundamental': {
+                title: '基本面分析',
+                description: '获取股票基本面财务报告',
+                method: 'GET',
+                url: '/api/stock/fundamental',
+                params: [
+                    { name: 'symbol', label: '股票代码', type: 'text', required: true, placeholder: '例: 000001', value: '000001' }
+                ]
+            },
+            'stock-news': {
+                title: '股票新闻',
+                description: '获取股票最新新闻',
+                method: 'GET',
+                url: '/api/stock/news',
+                params: [
+                    { name: 'symbol', label: '股票代码', type: 'text', required: true, placeholder: '例: 000001', value: '000001' },
+                    { name: 'days_back', label: '查询天数', type: 'number', required: false, value: '30' }
+                ]
+            },
+            'macro-dashboard': {
+                title: '智能宏观数据仪表板',
+                description: '获取所有主要宏观指标的最佳期数数据',
+                method: 'GET',
+                url: '/api/macro/smart-dashboard',
+                params: []
+            },
+            'macro-latest': {
+                title: '最新宏观数据',
+                description: '获取所有宏观指标的最新数据',
+                method: 'GET',
+                url: '/api/macro/latest',
+                params: [
+                    { name: 'periods', label: '期数', type: 'number', required: false, value: '1' }
+                ]
+            },
+            'macro-gdp': {
+                title: 'GDP数据',
+                description: '获取GDP数据',
+                method: 'GET',
+                url: '/api/macro/gdp',
+                params: [
+                    { name: 'periods', label: '期数', type: 'number', required: false, value: '4' }
+                ]
+            },
+            'macro-cpi': {
+                title: 'CPI数据',
+                description: '获取CPI数据',
+                method: 'GET',
+                url: '/api/macro/cpi',
+                params: [
+                    { name: 'periods', label: '期数', type: 'number', required: false, value: '12' }
+                ]
+            },
+            'macro-ppi': {
+                title: 'PPI数据',
+                description: '获取PPI数据',
+                method: 'GET',
+                url: '/api/macro/ppi',
+                params: [
+                    { name: 'periods', label: '期数', type: 'number', required: false, value: '12' }
+                ]
+            },
+            'macro-pmi': {
+                title: 'PMI数据',
+                description: '获取PMI数据',
+                method: 'GET',
+                url: '/api/macro/pmi',
+                params: [
+                    { name: 'periods', label: '期数', type: 'number', required: false, value: '12' }
+                ]
+            },
+            'calendar-trading-days': {
+                title: '获取交易日',
+                description: '获取指定股票的交易日列表',
+                method: 'GET',
+                url: '/api/calendar/trading-days',
+                params: [
+                    { name: 'symbol', label: '股票代码', type: 'text', required: true, placeholder: '例: 000001', value: '000001' },
+                    { name: 'start_date', label: '开始日期', type: 'date', required: true, value: '2024-01-01' },
+                    { name: 'end_date', label: '结束日期', type: 'date', required: true, value: '2024-01-31' }
+                ]
+            },
+            'calendar-is-trading-day': {
+                title: '检查交易日',
+                description: '检查指定日期是否为交易日',
+                method: 'GET',
+                url: '/api/calendar/is-trading-day',
+                params: [
+                    { name: 'symbol', label: '股票代码', type: 'text', required: true, placeholder: '例: 000001', value: '000001' },
+                    { name: 'check_date', label: '检查日期', type: 'date', required: true, value: '2024-01-15' }
+                ]
+            },
+            'calendar-supported-exchanges': {
+                title: '支持的交易所',
+                description: '获取支持的交易所列表',
+                method: 'GET',
+                url: '/api/calendar/supported-exchanges',
+                params: []
+            },
+            'macro-health': {
+                title: '系统健康状态',
+                description: '获取宏观数据服务健康状态',
+                method: 'GET',
+                url: '/api/macro/health',
+                params: []
+            },
+            'macro-sync-status': {
+                title: '同步状态',
+                description: '获取宏观数据同步状态',
+                method: 'GET',
+                url: '/api/macro/sync/status',
+                params: []
+            },
+            'macro-sync': {
+                title: '触发同步',
+                description: '手动触发宏观数据同步',
+                method: 'POST',
+                url: '/api/macro/sync',
+                params: [
+                    {
+                        name: 'indicator', label: '指标名称', type: 'select', required: false, options: [
+                            { value: '', label: '全部指标' },
+                            { value: 'gdp', label: 'GDP' },
+                            { value: 'cpi', label: 'CPI' },
+                            { value: 'ppi', label: 'PPI' },
+                            { value: 'pmi', label: 'PMI' },
+                            { value: 'money_supply', label: '货币供应量' },
+                            { value: 'social_financing', label: '社会融资' },
+                            { value: 'lpr', label: 'LPR' }
+                        ]
+                    },
+                    { name: 'force', label: '强制同步', type: 'checkbox', required: false }
+                ]
+            },
+            'macro-cache-stats': {
+                title: '缓存统计',
+                description: '获取宏观数据缓存统计信息',
+                method: 'GET',
+                url: '/api/macro/cache/stats',
+                params: []
+            },
+            'macro-clear-cache': {
+                title: '清除缓存',
+                description: '清除宏观数据缓存',
+                method: 'DELETE',
+                url: '/api/macro/cache',
+                params: [
+                    {
+                        name: 'indicator', label: '指标名称', type: 'select', required: false, options: [
+                            { value: '', label: '全部缓存' },
+                            { value: 'gdp', label: 'GDP' },
+                            { value: 'cpi', label: 'CPI' },
+                            { value: 'ppi', label: 'PPI' },
+                            { value: 'pmi', label: 'PMI' },
+                            { value: 'money_supply', label: '货币供应量' },
+                            { value: 'social_financing', label: '社会融资' },
+                            { value: 'lpr', label: 'LPR' }
+                        ]
+                    }
+                ]
+            }
+        };
+
+        let currentAPI = null;
+
+        // 切换分类的展开/折叠状态
+        function toggleCategory(categoryName) {
+            const list = document.getElementById(categoryName + '-apis');
+            const icon = event.target.closest('.category-header').querySelector('.collapse-icon');
+
+            if (list.classList.contains('show')) {
+                list.classList.remove('show');
+                icon.classList.add('collapsed');
+            } else {
+                list.classList.add('show');
+                icon.classList.remove('collapsed');
+            }
+        }
+
+        // 选择API接口
+        function selectAPI(apiKey) {
+            const config = API_CONFIG[apiKey];
+            if (!config) return;
+
+            // 更新当前API
+            currentAPI = apiKey;
+
+            // 更新选中状态
+            document.querySelectorAll('.api-item').forEach(item => item.classList.remove('active'));
+            event.target.closest('.api-item').classList.add('active');
+
+            // 更新标题和描述
+            document.getElementById('api-title').textContent = config.title;
+            document.getElementById('api-description').textContent = config.description;
+
+            // 生成参数表单
+            generateParamsForm(config);
+
+            // 清空结果区域
+            document.getElementById('results-container').innerHTML = `
+                <div class="empty-state">
+                    <h3>等待测试</h3>
+                    <p>填写参数后点击测试按钮</p>
+                </div>
+            `;
+        }
+
+        // 生成参数表单
+        function generateParamsForm(config) {
+            const container = document.getElementById('params-container');
+
+            if (config.params.length === 0) {
+                container.innerHTML = `
+                    <p style="color: #6c757d; margin-bottom: 15px;">此接口无需参数</p>
+                    <button class="test-btn" onclick="testCurrentAPI()">测试接口</button>
+                `;
+                return;
+            }
+
+            let html = '';
+            config.params.forEach(param => {
+                html += '<div class="input-group">';
+                html += `<label>${param.label}${param.required ? ' *' : ''}:</label>`;
+
+                if (param.type === 'select') {
+                    html += `<select id="param-${param.name}">`;
+                    param.options.forEach(option => {
+                        html += `<option value="${option.value}">${option.label}</option>`;
+                    });
+                    html += '</select>';
+                } else if (param.type === 'checkbox') {
+                    html += `<label style="display: flex; align-items: center; margin-top: 5px;">
+                        <input type="checkbox" id="param-${param.name}" style="margin-right: 8px;">
+                        ${param.label}
+                    </label>`;
+                } else if (param.type === 'json') {
+                    html += `<textarea id="param-${param.name}" placeholder='${param.placeholder || ''}'>${param.value || ''}</textarea>`;
+                } else {
+                    html += `<input type="${param.type}" id="param-${param.name}" placeholder="${param.placeholder || ''}" value="${param.value || ''}">`;
+                }
+                html += '</div>';
+            });
+
+            html += '<button class="test-btn" onclick="testCurrentAPI()">测试接口</button>';
+            container.innerHTML = html;
+        }
+
+        // 测试当前API
+        async function testCurrentAPI() {
+            if (!currentAPI) return;
+
+            const config = API_CONFIG[currentAPI];
+            const button = document.querySelector('.test-btn');
+            const resultsContainer = document.getElementById('results-container');
+
+            // 获取参数值
+            const params = {};
+            let hasError = false;
+
+            config.params.forEach(param => {
+                const element = document.getElementById(`param-${param.name}`);
+                if (!element) return;
+
+                let value;
+                if (param.type === 'checkbox') {
+                    value = element.checked;
+                } else if (param.type === 'json') {
+                    try {
+                        value = JSON.parse(element.value);
+                    } catch (e) {
+                        alert(`参数 "${param.label}" 的JSON格式不正确`);
+                        hasError = true;
+                        return;
+                    }
+                } else {
+                    value = element.value;
+                }
+
+                if (param.required && (!value || value === '')) {
+                    alert(`请填写必填参数: ${param.label}`);
+                    hasError = true;
+                    return;
+                }
+
+                if (value !== '' && value !== null && value !== undefined) {
+                    params[param.name] = value;
+                }
+            });
+
+            if (hasError) return;
+
+            // 显示加载状态
+            button.disabled = true;
+            button.innerHTML = '<span class="loading"></span>请求中...';
+
+            resultsContainer.innerHTML = `
+                <div class="response-container">
+                    <div class="response-header">正在请求...</div>
+                    <div class="response-body">等待服务器响应...</div>
+                </div>
+            `;
+
+            try {
+                let url = `${SERVER_URL}${config.url}`;
+                let options = {
+                    method: config.method,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                };
+
+                // 处理参数
+                if (config.method === 'GET' || config.method === 'DELETE') {
+                    if (Object.keys(params).length > 0) {
+                        const urlParams = new URLSearchParams();
+                        Object.entries(params).forEach(([key, value]) => {
+                            if (value !== null && value !== undefined && value !== '') {
+                                urlParams.append(key, value);
+                            }
+                        });
+                        if (urlParams.toString()) {
+                            url += '?' + urlParams.toString();
+                        }
+                    }
+                } else if (config.method === 'POST') {
+                    options.body = JSON.stringify(params);
+                }
+
+                const startTime = Date.now();
+                const response = await fetch(url, options);
+                const endTime = Date.now();
+                const duration = endTime - startTime;
+
+                const responseText = await response.text();
+                let responseData;
+
+                try {
+                    responseData = JSON.parse(responseText);
+                } catch {
+                    responseData = responseText;
+                }
+
+                // 显示响应
+                const statusClass = response.ok ? 'status-success' : 'status-error';
+
+                // 生成分离显示的HTML
+                let responseHtml = '';
+
+                // HTTP状态信息
+                responseHtml += `
+                    <div class="response-container">
+                        <div class="response-header">
+                            <span class="${statusClass}">
+                                ${response.status} ${response.statusText}
+                            </span>
+                            <span style="float: right;">${duration}ms</span>
+                        </div>
+                    </div>
+                `;
+
+                // 显示请求URL
+                responseHtml += `
+                    <div class="response-section">
+                        <h4>请求URL</h4>
+                        <div class="response-content url">
+                            ${config.method} ${url}
+                        </div>
+                    </div>
+                `;
+
+                // 如果响应是JSON对象且包含标准结构，则分离显示
+                if (typeof responseData === 'object' && responseData !== null) {
+                    // 显示Status
+                    if (responseData.status !== undefined) {
+                        const statusBadgeClass = responseData.status === 'success' ? 'success' : 'error';
+                        responseHtml += `
+                            <div class="response-section">
+                                <h4>Status</h4>
+                                <div class="response-content">
+                                    <span class="status-badge ${statusBadgeClass}">${responseData.status}</span>
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    // 显示Message
+                    if (responseData.message !== undefined) {
+                        responseHtml += `
+                            <div class="response-section">
+                                <h4>Message</h4>
+                                <div class="response-content">
+                                    ${responseData.message}
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    // 显示Data
+                    if (responseData.data !== undefined) {
+                        responseHtml += `
+                            <div class="response-section">
+                                <h4>Data</h4>
+                        `;
+
+                        // 检查data是否为Markdown字符串
+                        if (typeof responseData.data === 'string' &&
+                            (responseData.data.includes('#') || responseData.data.includes('**') ||
+                                responseData.data.includes('##') || responseData.data.includes('###'))) {
+                            // 使用marked.js渲染Markdown
+                            const markdownHtml = marked.parse(responseData.data);
+                            responseHtml += `
+                                <div class="response-content markdown">
+                                    <div class="markdown-content">${markdownHtml}</div>
+                                </div>
+                            `;
+                        } else {
+                            // 显示为JSON
+                            const dataStr = typeof responseData.data === 'object'
+                                ? JSON.stringify(responseData.data, null, 2)
+                                : String(responseData.data);
+                            responseHtml += `
+                                <div class="response-content json">
+                                    ${dataStr}
+                                </div>
+                            `;
+                        }
+
+                        responseHtml += `</div>`;
+                    }
+
+                    // 如果有其他字段，显示完整响应
+                    const standardFields = ['status', 'message', 'data'];
+                    const otherFields = Object.keys(responseData).filter(key => !standardFields.includes(key));
+
+                    if (otherFields.length > 0) {
+                        const otherData = {};
+                        otherFields.forEach(key => {
+                            otherData[key] = responseData[key];
+                        });
+
+                        responseHtml += `
+                            <div class="response-section">
+                                <h4>其他字段</h4>
+                                <div class="response-content json">
+                                    ${JSON.stringify(otherData, null, 2)}
+                                </div>
+                            </div>
+                        `;
+                    }
+                } else {
+                    // 非标准格式，显示原始响应
+                    const formattedResponse = typeof responseData === 'object'
+                        ? JSON.stringify(responseData, null, 2)
+                        : String(responseData);
+
+                    responseHtml += `
+                        <div class="response-section">
+                            <h4>响应内容</h4>
+                            <div class="response-content json">
+                                ${formattedResponse}
+                            </div>
+                        </div>
+                    `;
+                }
+
+                resultsContainer.innerHTML = responseHtml;
+
+            } catch (error) {
+                resultsContainer.innerHTML = `
+                    <div class="response-container">
+                        <div class="response-header">
+                            <span class="status-error">请求失败</span>
+                        </div>
+                    </div>
+                    <div class="response-section">
+                        <h4>错误信息</h4>
+                        <div class="response-content">
+                            <span class="status-badge error">ERROR</span>
+                            <p style="margin-top: 10px;">错误: ${error.message}</p>
+                        </div>
+                    </div>
+                `;
+            } finally {
+                // 恢复按钮状态
+                button.disabled = false;
+                button.innerHTML = '测试接口';
+            }
+        }
+
+        // 页面加载完成后的初始化
+        document.addEventListener('DOMContentLoaded', function () {
+            console.log('API测试工具已加载，服务器地址:', SERVER_URL);
+
+            // 默认选择第一个API
+            selectAPI('stock-quote');
+        });
+    </script>
+</body>
+
+</html>

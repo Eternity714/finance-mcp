@@ -12,7 +12,6 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 
 # 处理相对导入问题
 if __name__ == "__main__":
@@ -83,14 +82,15 @@ def create_app() -> FastAPI:
     app.include_router(sse_router, prefix="/sse", tags=["SSE"])
     app.include_router(api_router, prefix="/api", tags=["API"])
 
-    # 静态文件和模板
+    # 静态文件
     app.mount("/static", StaticFiles(directory="src/client/static"), name="static")
-    templates = Jinja2Templates(directory="src/client/templates")
 
     @app.get("/")
     async def root(request: Request):
-        """首页"""
-        return templates.TemplateResponse("dashboard.html", {"request": request})
+        """API测试页面 - 主页"""
+        from fastapi.responses import FileResponse
+
+        return FileResponse("src/client/static/api-test.html")
 
     @app.get("/health")
     async def health_check():
