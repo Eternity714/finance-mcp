@@ -121,7 +121,7 @@ class StockMCPServer:
             """
             try:
                 if self.market_service:
-                    report = self.market_service.generate_stock_report(
+                    report = self.market_service.generate_market_report(
                         symbol, start_date, end_date
                     )
                     return report
@@ -144,7 +144,7 @@ class StockMCPServer:
             """
             try:
                 if self.fundamentals_service:
-                    report = self.fundamentals_service.generate_fundamentals_report(
+                    report = self.fundamentals_service.generate_fundamental_report(
                         symbol
                     )
                     return report
