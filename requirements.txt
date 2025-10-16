@@ -12,6 +12,7 @@ bs4
 certifi
 cffi
 charset-normalizer
+DBUtils
 click
 pymysql
 cryptography
@@ -125,3 +126,4 @@ tavily-python
 pandas_market_calendars
 schedule 
 python-dateutil
+pytdx

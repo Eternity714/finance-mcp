@@ -296,9 +296,6 @@ class TushareMacroFetcher:
             # 按季度排序
             df = df.sort_values("quarter", ascending=True).reset_index(drop=True)
 
-            # 添加时间字段
-            df["time"] = pd.to_datetime(df["quarter"].str.replace("Q", "-0") + "-01")
-
             # 确保数值字段为 float 类型
             numeric_columns = [
                 "gdp",
