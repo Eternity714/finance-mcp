@@ -9,8 +9,8 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
 
 from .akshare_service import AkshareService
-from .fundamentals_service import FundamentalsAnalysisService
-from .news_service import RealtimeNewsAggregator
+from .fundamentals_service import FundamentalsService
+from .new_service import get_news_service
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ class MessageService:
             self.akshare_service = None
 
         try:
-            self.fundamentals_service = FundamentalsAnalysisService()
+            self.fundamentals_service = FundamentalsService()
             logger.info("✅ 基本面服务已初始化")
         except Exception as e:
             logger.error(f"❌ 基本面服务初始化失败: {e}")
@@ -38,7 +38,9 @@ class MessageService:
             from ...config.settings import get_settings
 
             settings = get_settings()
-            self.news_service = RealtimeNewsAggregator(settings)
+            # 根据是否配置了HTTP代理，决定是否为NewsAPI启用代理
+            use_proxy = bool(getattr(settings, "http_proxy", None))
+            self.news_service = get_news_service(use_proxy=use_proxy)
             logger.info("✅ 新闻服务已初始化")
         except Exception as e:
             logger.error(f"❌ 新闻服务初始化失败: {e}")
@@ -129,17 +131,17 @@ class MessageService:
         if analysis_type in ["fundamental", "all"]:
             if self.fundamentals_service:
                 try:
-                    fundamental_data = self.fundamentals_service.get_comprehensive_data(
-                        symbol
-                    )
+                    fundamental_data = self.fundamentals_service.get_fundamental_data(symbol)
                     if fundamental_data:
+                        basic_info = fundamental_data.get("basic_info", {})
+                        ratios = self.fundamentals_service.calculate_financial_ratios(fundamental_data)
                         result["fundamental"] = {
-                            "pe_ratio": fundamental_data.pe_ratio,
-                            "pb_ratio": fundamental_data.pb_ratio,
-                            "roe": fundamental_data.roe,
-                            "market_cap": fundamental_data.market_cap,
-                            "eps": fundamental_data.eps,
-                            "source": fundamental_data.source,
+                            "pe_ratio": ratios.get("pe_ratio"),
+                            "pb_ratio": ratios.get("pb_ratio"),
+                            "roe": ratios.get("roe"),
+                            "market_cap": basic_info.get("market_cap") or basic_info.get("marketCap"),
+                            "eps": ratios.get("eps"),
+                            "source": fundamental_data.get("source"),
                         }
                 except Exception as e:
                     logger.warning(f"获取基本面数据失败: {e}")
@@ -214,26 +216,28 @@ class MessageService:
             raise RuntimeError("新闻服务不可用")
 
         try:
-            news_items = self.news_service.get_realtime_stock_news(symbol, days)
+            # 使用多数据源新闻服务，按天数回溯获取新闻
+            result = self.news_service.get_news_for_date(
+                symbol, target_date=None, days_before=int(days)
+            )
 
-            # 转换为序列化友好的格式
+            if not result.get("success", True):
+                raise RuntimeError(result.get("error", "新闻服务失败"))
+
+            raw_news = result.get("news", [])
+
+            # 转换为序列化友好的格式（最多返回20条）
             news_list = []
-            for item in news_items[:20]:  # 最多返回20条新闻
+            for item in raw_news[:20]:
+                title = item.get("title", "")
+                content = item.get("content", "")
                 news_list.append(
                     {
-                        "title": item.title,
-                        "content": (
-                            item.content[:200] + "..."
-                            if len(item.content) > 200
-                            else item.content
-                        ),
-                        "source": item.source,
-                        "published_at": (
-                            item.publish_time.isoformat()
-                            if hasattr(item, "publish_time")
-                            else None
-                        ),
-                        "url": getattr(item, "url", None),
+                        "title": title,
+                        "content": content[:200] + ("..." if len(content) > 200 else ""),
+                        "source": item.get("source"),
+                        "published_at": item.get("publish_time"),
+                        "url": item.get("url"),
                     }
                 )
 
